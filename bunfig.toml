@@ -1,0 +1,9 @@
+[install]
+exact = true
+
+[test]
+coverage = true
+coverageThreshold = 0.75
+
+[fmt]
+ignorePatterns = ["**/*.md"]

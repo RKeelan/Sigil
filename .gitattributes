@@ -1,0 +1,4 @@
+# Check every text file out with LF. Git for Windows would otherwise check them out with CRLF, and
+# `bun fmt` writes LF, so `bun fmt --check` would flag every file. Bun's HTML bundler also copies
+# CRs from a page into its output.
+* text=auto eol=lf

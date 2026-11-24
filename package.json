@@ -1,0 +1,24 @@
+{
+  "name": "sigil",
+  "version": "0.0.0",
+  "description": "A live-preview Markdown editor component built on CodeMirror 6",
+  "type": "module",
+  "license": "MIT",
+  "author": "Richard Keelan",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RKeelan/Sigil.git"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "biome lint .",
+    "lint:pkg": "npmPkgJsonLint ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.8",
+    "@types/bun": "1.4.5",
+    "npm-package-json-lint": "11.0.1"
+  }
+}
