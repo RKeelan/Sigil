@@ -98,6 +98,13 @@ describe("renderLines", () => {
     );
   });
 
+  test("renders a fenced block's code highlighted", () => {
+    expect(html("```js\nlet x; /* a\nb */\n```").slice(1, 3)).toEqual([
+      '<div class="sg-line sg-code-line"><span class="sg-mono"><span class="sg-tok-keyword">let</span> x; <span class="sg-tok-comment">/* a</span></span></div>',
+      '<div class="sg-line sg-code-line"><span class="sg-tok-comment"><span class="sg-mono">b */</span></span></div>',
+    ]);
+  });
+
   test("renders only the lines asked for", () => {
     const doc = Text.of(["*a*", "*b*", "*c*"]);
     const src = { doc, tree: parseText(doc), frontMatterTo: 0 };

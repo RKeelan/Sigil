@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { Text } from "@codemirror/state";
-import { frontMatterEnd, markdownParser, parseText } from "./parser.ts";
+import {
+  documentType,
+  frontMatterEnd,
+  markdownParser,
+  parseText,
+} from "./parser.ts";
 
 /** The names of the nodes a text parses to, with their extents. */
 function nodes(text: string): string[] {
@@ -75,6 +80,34 @@ describe("GitHub's extensions", () => {
 
   test("a list directly follows a paragraph", () => {
     expect(nodes("para\n- one\n- two")).toContain("BulletList 5-16");
+  });
+});
+
+describe("fenced code", () => {
+  /** The innermost node at a position, in the code's tree and in the document's. */
+  function at(text: string, pos: number): [string, string] {
+    const tree = parseText(Text.of(text.split("\n")));
+    return [tree.resolveInner(pos, 1).name, tree.resolve(pos, 1).name];
+  }
+
+  test("is parsed in its language, in a tree mounted over the code", () => {
+    expect(at("```js\nlet x;\n```", 6)).toEqual(["let", "CodeText"]);
+  });
+
+  test("is left as text when its language isn't known", () => {
+    expect(at("```nonesuch\nlet x;\n```", 12)).toEqual([
+      "CodeText",
+      "CodeText",
+    ]);
+  });
+
+  test("in Markdown has a top node of its own", () => {
+    const tree = parseText(Text.of(["```md", "# a", "```"]));
+    let node = tree.resolveInner(8, 1);
+    while (node.parent && node.parent.name !== "FencedCode") node = node.parent;
+    expect(node.type.isTop).toBe(true);
+    expect(node.type).not.toBe(documentType);
+    expect(tree.type).toBe(documentType);
   });
 });
 

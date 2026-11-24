@@ -62,7 +62,9 @@ function itemAround(
   if (!item) return null;
   // Only the paragraph that starts on the marker's line continues into a new item. Enter in a
   // later paragraph of the item, or in a block nested in it, starts another line of that block.
-  let block: SyntaxNode | null = tree.resolveInner(
+  // The block is found the way `containersOf` finds containers, so that `innermost` is among its
+  // ancestors as the same object.
+  let block: SyntaxNode | null = tree.resolve(
     line.from + line.text.trimEnd().length,
     -1,
   );

@@ -168,6 +168,7 @@ describe("blocks", () => {
       "hide 0-3",
       "mark 3-5 sg-code-info",
       "hide 13-16",
+      "mark 6-9 sg-tok-keyword",
       "mark 0-5 sg-mono",
       "mark 6-12 sg-mono",
       "mark 13-16 sg-mono",
@@ -211,6 +212,86 @@ describe("blocks", () => {
       "line 20 sg-front-matter",
       "mark 20-23 sg-mono",
     ]);
+  });
+});
+
+describe("code in a fenced block", () => {
+  /** The highlighted tokens of a text, each with its text. */
+  function tokens(source: string, from = 0, to = source.length): string[] {
+    const doc = Text.of(source.split("\n"));
+    return buildPieces(
+      { doc, tree: parseText(doc), frontMatterTo: 0 },
+      from,
+      to,
+    )
+      .filter((piece) => piece.kind === "mark" && piece.cls.includes("sg-tok"))
+      .map((piece) =>
+        piece.kind === "mark"
+          ? `${doc.sliceString(piece.from, piece.to)} ${piece.cls}`
+          : "",
+      );
+  }
+
+  test("is highlighted in the language its info string names", () => {
+    expect(tokens('```ts title="x"\nf("s", 1) // c\n```')).toEqual([
+      "f sg-tok-function",
+      '"s" sg-tok-string',
+      "1 sg-tok-literal",
+      "// c sg-tok-comment",
+    ]);
+    expect(tokens("```Python\ndef f(): return None\n```")).toEqual([
+      "def sg-tok-keyword",
+      "f sg-tok-function",
+      "return sg-tok-keyword",
+      "None sg-tok-literal",
+    ]);
+  });
+
+  test("is highlighted in languages defined by stream parsers", () => {
+    expect(tokens('```sh\necho "hi" # c\n```')).toEqual([
+      "echo sg-tok-function",
+      '"hi" sg-tok-string',
+      "# c sg-tok-comment",
+    ]);
+    expect(tokens("```diff\n-a\n+b\n```")).toEqual([
+      "-a sg-tok-deleted",
+      "+b sg-tok-inserted",
+    ]);
+  });
+
+  test("is marked a line at a time where a token spans lines", () => {
+    expect(tokens("```js\n/* a\nb */\n```")).toEqual([
+      "/* a sg-tok-comment",
+      "b */ sg-tok-comment",
+    ]);
+  });
+
+  test("is left alone when its language isn't known or isn't given", () => {
+    expect(tokens("```nonesuch\nlet x;\n```")).toEqual([]);
+    expect(tokens("```\nlet x;\n```")).toEqual([]);
+    expect(tokens("a\n\n    let x;")).toEqual([]);
+  });
+
+  test("is highlighted inside a quote or a list item", () => {
+    expect(tokens("> ```js\n> let x;\n> ```")).toEqual(["let sg-tok-keyword"]);
+    expect(tokens("- a\n\n  ```js\n  let x;\n  ```")).toEqual([
+      "let sg-tok-keyword",
+    ]);
+  });
+
+  test("is highlighted only on the lines asked for", () => {
+    const source = "```js\nlet a;\nlet b;\n```";
+    expect(tokens(source, 13, 13)).toEqual(["let sg-tok-keyword"]);
+  });
+
+  test("in Markdown is highlighted and not rendered", () => {
+    const source = "~~~md\n# T\n- a\n> q\n```js\nlet x;\n```\n~~~";
+    expect(tokens(source)).toContain(" T sg-tok-heading");
+    expect(tokens(source)).toContain("let sg-tok-keyword");
+    const rendered = pieces(source);
+    expect(rendered.some((piece) => piece.includes("bullet"))).toBe(false);
+    expect(rendered.some((piece) => piece.includes("sg-nested"))).toBe(false);
+    expect(rendered.some((piece) => piece.includes("sg-h1"))).toBe(false);
   });
 });
 

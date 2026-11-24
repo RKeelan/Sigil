@@ -43,6 +43,7 @@ The component knows nothing about its host. Its first host is a VS Code extensio
 * Nothing animates. Nothing on screen moves as state changes, except where live preview reveals syntax at the cursor, which it can't avoid. Syntax can be revealed for the element under the cursor or for the whole source line holding it. Whole-line reveal is the recommendation, being both simpler and steadier. A source line is usually a paragraph or a list item, so moving the cursor within one never moves text, and moving between them shifts only the line left and the line entered. Revealing only the element under the cursor would move text at every step along a line, which is worse while typing. Either way, a table or fenced block is revealed whole.
 * Headings are larger than the text, and keep their size whether or not the cursor is on them. A row's height changes only when a line becomes or stops being a heading.
 * The component has light and dark palettes of its own, and never takes its colours from the host.
+* Code in a fenced block is highlighted in the language its info string names, if that is one of the common languages the component bundles. They are bundled rather than loaded when a fence names one, so that a host serves no script but the component's own. Markdown in a fenced block is highlighted as code, not rendered.
 
 ## Host interface
 

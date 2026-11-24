@@ -1,6 +1,8 @@
 import type { Line, Text } from "@codemirror/state";
 import type { SyntaxNode, SyntaxNodeRef, Tree } from "@lezer/common";
+import { highlightTree } from "@lezer/highlight";
 import { type Item, linePrefix } from "../markdown/structure.ts";
+import { codeHighlighter } from "./highlight.ts";
 
 /** The width of one level of list indentation, in ems. */
 export const INDENT = 1.6;
@@ -282,6 +284,23 @@ function code(
     if (child.name === "CodeMark") syntax(child, shown, out);
     else if (child.name === "CodeInfo") out.push(mark(child, "sg-code-info"));
   }
+  // The block's code has a tree of its own, in its language, when the info string names one
+  // that is highlighted. A token that runs over several lines, such as a block comment, is
+  // marked a line at a time, since rendered lines are built one by one.
+  highlightTree(
+    src.tree,
+    codeHighlighter,
+    (start, end, cls) => {
+      for (let pos = start; pos < end;) {
+        const line = doc.lineAt(pos);
+        const stop = Math.min(end, line.to);
+        if (stop > pos) out.push({ kind: "mark", from: pos, to: stop, cls });
+        pos = line.to + 1;
+      }
+    },
+    Math.max(node.from, from),
+    Math.min(node.to, to),
+  );
 }
 
 /**

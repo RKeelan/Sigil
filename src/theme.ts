@@ -39,6 +39,13 @@ const palettes: Record<Palette, Record<string, string>> = {
     "--sg-staged": "#e4e9f6",
     "--sg-staged-text": "#c3cfee",
     "--sg-staged-bar": "#6f86c9",
+    "--sg-tok-keyword": "#8b3a74",
+    "--sg-tok-literal": "#a3501a",
+    "--sg-tok-string": "#3c6e27",
+    "--sg-tok-function": "#7a5410",
+    "--sg-tok-type": "#106a6a",
+    "--sg-tok-property": "#2a5a9a",
+    "--sg-tok-deleted": "#b2352b",
   },
   dark: {
     "--sg-bg": "#1c1b19",
@@ -60,6 +67,13 @@ const palettes: Record<Palette, Record<string, string>> = {
     "--sg-staged": "#232b40",
     "--sg-staged-text": "#374672",
     "--sg-staged-bar": "#7d93d6",
+    "--sg-tok-keyword": "#d197c4",
+    "--sg-tok-literal": "#e3a274",
+    "--sg-tok-string": "#a5c98a",
+    "--sg-tok-function": "#d8bd7a",
+    "--sg-tok-type": "#77c2bd",
+    "--sg-tok-property": "#8db4e6",
+    "--sg-tok-deleted": "#e8877d",
   },
 };
 
@@ -224,6 +238,23 @@ const styles = EditorView.theme({
   // Code blocks and front matter.
   ".sg-code-line": { backgroundColor: "var(--sg-code-bg)" },
   ".sg-code-info": { color: "var(--sg-muted)" },
+  // The tokens of a fenced block's code, by role. A monospaced font is as wide in every weight
+  // and slant, so the code's columns stay lined up.
+  ".sg-tok-comment": { color: "var(--sg-muted)", fontStyle: "italic" },
+  ".sg-tok-keyword": { color: "var(--sg-tok-keyword)" },
+  ".sg-tok-literal": { color: "var(--sg-tok-literal)" },
+  ".sg-tok-string, .sg-tok-inserted": { color: "var(--sg-tok-string)" },
+  ".sg-tok-function": { color: "var(--sg-tok-function)" },
+  ".sg-tok-type": { color: "var(--sg-tok-type)" },
+  ".sg-tok-property": { color: "var(--sg-tok-property)" },
+  ".sg-tok-deleted": { color: "var(--sg-tok-deleted)" },
+  ".sg-tok-heading": {
+    color: "var(--sg-tok-keyword)",
+    fontWeight: headingWeight,
+  },
+  ".sg-tok-strong": { fontWeight: headingWeight },
+  ".sg-tok-em": { fontStyle: "italic" },
+  ".sg-tok-link": { color: "var(--sg-link)" },
   ".sg-front-matter": { color: "var(--sg-muted)" },
   ".sg-fold": {
     fontFamily: mono,
