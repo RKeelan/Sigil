@@ -78,12 +78,15 @@ export function itemInfo(node: SyntaxNode, doc: Text): Item | null {
 
 const containers = new Set(["Blockquote", "FencedQuote", "ListItem"]);
 
-/** The quotes and list items a line is inside, outermost first. */
+/**
+ * The quotes and list items a line is inside, outermost first. The tree mounted over a fenced
+ * block's code isn't entered, so that Markdown in a fenced block adds none.
+ */
 export function containersOf(tree: Tree, line: Line): SyntaxNode[] {
   const length = line.text.trimEnd().length;
   let node: SyntaxNode | null = length
-    ? tree.resolveInner(line.from + length, -1)
-    : tree.resolveInner(line.from, 0);
+    ? tree.resolve(line.from + length, -1)
+    : tree.resolve(line.from, 0);
   const chain: SyntaxNode[] = [];
   for (; node; node = node.parent)
     if (containers.has(node.name)) chain.push(node);

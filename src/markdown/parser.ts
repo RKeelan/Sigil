@@ -5,13 +5,15 @@ import {
   languageDataProp,
 } from "@codemirror/language";
 import type { Text } from "@codemirror/state";
-import type { Tree } from "@lezer/common";
+import type { NodeType, Parser, Tree } from "@lezer/common";
 import {
   type BlockContext,
   parser as commonmark,
   GFM,
   type MarkdownConfig,
+  parseCode,
 } from "@lezer/markdown";
+import { fenceLanguage, fenceName } from "./languages.ts";
 
 const fenceLine = /^>>>[ \t]*$/;
 
@@ -71,12 +73,39 @@ const data = defineLanguageFacet({
   commentTokens: { block: { open: "<!--", close: "-->" } },
 });
 
-/** The Markdown parser: CommonMark with GitHub's extensions and fenced quotes. */
+/**
+ * The parser for a fenced block's code, when its info string names a language that is
+ * highlighted. Its syntax tree is mounted in the document's, over the block's code.
+ */
+function codeParser(info: string): Parser | null {
+  const name = fenceName(info);
+  if (name === "md" || name === "markdown") return fencedMarkdown;
+  return fenceLanguage(info)?.parser ?? null;
+}
+
+const fencedCode = parseCode({ codeParser });
+
+/**
+ * Markdown in a fenced block. It is a parser of its own so that its tree's top node differs
+ * from the document's, which is how its highlighting is told apart from the document's syntax.
+ */
+const fencedMarkdown = commonmark.configure([GFM, fencedQuote, fencedCode]);
+
+/**
+ * The Markdown parser: CommonMark with GitHub's extensions and fenced quotes, and the code in
+ * fenced blocks parsed in its own language.
+ */
 export const markdownParser = commonmark.configure([
   GFM,
   fencedQuote,
+  fencedCode,
   { props: [languageDataProp.add({ Document: data })] },
 ]);
+
+/** The type of the document's top node, as opposed to that of a tree mounted in it. */
+export const documentType = markdownParser.nodeSet.types.find(
+  (type) => type.isTop,
+) as NodeType;
 
 /** The CodeMirror language that keeps a syntax tree of the document. */
 export const markdownLanguage = new Language(

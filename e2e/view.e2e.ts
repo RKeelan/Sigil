@@ -131,6 +131,30 @@ test("a fenced block shows its fences when the cursor is in it", async ({
   await expect(demo.page.locator(".sg-code-line").last()).toHaveText("```");
 });
 
+test("a fenced block's code is coloured by its language, in either theme", async ({
+  demo,
+}) => {
+  await demo.open("basics");
+  await demo.setText('intro\n\n```js\nlet x = "s";\n```\n\nend\n', 0);
+  const colour = (selector: string) =>
+    demo.page
+      .locator(selector)
+      .first()
+      .evaluate((element) => getComputedStyle(element).color);
+  const colours = async () => [
+    await colour(".sg-code-line .sg-mono"),
+    await colour(".sg-tok-keyword"),
+    await colour(".sg-tok-string"),
+  ];
+  const light = await colours();
+  expect(new Set(light).size).toBe(3);
+  await demo.page.getByLabel("Theme").selectOption("dark");
+  await expect(demo.page.locator(".cm-editor")).toHaveClass(/sg-dark/);
+  const dark = await colours();
+  expect(new Set(dark).size).toBe(3);
+  expect(dark[1]).not.toBe(light[1]);
+});
+
 test("front matter is folded behind a row that names its lines", async ({
   demo,
 }) => {
