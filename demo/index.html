@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en" data-host="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--
+      The policy a VS Code webview is given: nothing loads unless it is named here, scripts and
+      styles need the nonce, and there is no inline style attribute or eval. Code that would fail
+      in VS Code fails on this page first.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'nonce-{{nonce}}'; style-src 'nonce-{{nonce}}'; font-src data:; img-src data: https:"
+    />
+    <title>Sigil demo</title>
+    <!--styles-->
+  </head>
+  <body>
+    <header class="bar">
+      <span class="name">Sigil</span>
+      <label>
+        Document
+        <select id="sample"></select>
+      </label>
+      <label>
+        Theme
+        <select id="theme">
+          <option value="system">System</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </label>
+      <label>
+        Host
+        <select id="host">
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </label>
+      <label><input type="checkbox" id="numbers" checked /> Line numbers</label>
+      <label><input type="checkbox" id="changes" checked /> Changes</label>
+    </header>
+    <main id="editor"></main>
+    <!--script-->
+  </body>
+</html>

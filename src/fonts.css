@@ -1,0 +1,9 @@
+/*
+ * The fonts the editor is set in: Source Serif 4 for text and IBM Plex Mono for code, both under
+ * the SIL Open Font License. A host imports this file, or supplies the fonts some other way.
+ */
+@import "@fontsource-variable/source-serif-4/wght.css";
+@import "@fontsource-variable/source-serif-4/wght-italic.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/400-italic.css";
+@import "@fontsource/ibm-plex-mono/600.css";

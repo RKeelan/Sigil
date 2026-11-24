@@ -10,15 +10,33 @@
     "url": "git+https://github.com/RKeelan/Sigil.git"
   },
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./fonts.css": "./src/fonts.css"
   },
   "scripts": {
     "lint": "biome lint .",
-    "lint:pkg": "npmPkgJsonLint ."
+    "lint:pkg": "npmPkgJsonLint .",
+    "build:demo": "bun scripts/build-demo.ts",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.8",
+    "@happy-dom/global-registrator": "21.0.4",
+    "@playwright/test": "1.65.1",
     "@types/bun": "1.4.5",
     "npm-package-json-lint": "11.0.1"
+  },
+  "dependencies": {
+    "@codemirror/commands": "6.11.1",
+    "@codemirror/language": "6.13.1",
+    "@codemirror/merge": "6.12.3",
+    "@codemirror/search": "6.7.2",
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.43.15",
+    "@fontsource-variable/source-serif-4": "5.3.1",
+    "@fontsource/ibm-plex-mono": "5.3.0",
+    "@lezer/common": "1.5.6",
+    "@lezer/highlight": "1.2.5",
+    "@lezer/markdown": "1.8.1"
   }
 }
