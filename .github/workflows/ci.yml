@@ -34,3 +34,12 @@ jobs:
 
       - name: Test
         run: bun test
+
+      - name: Build the demo page
+        run: bun run build:demo
+
+      - name: Install the browser
+        run: bunx playwright install --with-deps chromium
+
+      - name: Test in the browser
+        run: bun run test:e2e

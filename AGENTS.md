@@ -9,7 +9,13 @@ Sigil is a live-preview Markdown editor component built on CodeMirror 6, indepen
 - `bun run lint:pkg`: check that `package.json` pins every dependency
 - `bun fmt`: format; `bun fmt --check` checks without writing
 - `bun check`: type check
-- `bun test`: run the tests, which fail below 75% line or function coverage
+- `bun test`: run the unit tests, which fail below 75% line or function coverage
+- `bun run build:demo`: build the demo page, `dist/demo/index.html`
+- `bun run test:e2e`: run the end-to-end tests, which drive the built demo page with Playwright
+
+## Testing
+
+Unit tests sit beside the code as `*.test.ts` and run against a DOM with no layout, so they check structure and text. Anything that depends on how the page is laid out or painted is tested end to end, in `e2e/*.e2e.ts`. Rebuild the demo page before running the end-to-end tests, which test the built file.
 
 ## Dependency policy
 

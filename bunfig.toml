@@ -4,6 +4,7 @@ exact = true
 [test]
 coverage = true
 coverageThreshold = 0.75
+preload = ["./src/test-setup.ts"]
 
 [fmt]
 ignorePatterns = ["**/*.md"]
