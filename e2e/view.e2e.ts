@@ -218,16 +218,19 @@ test("bullets keep the difference between their markers", async ({ demo }) => {
   ]);
 });
 
-test("the theme follows the host unless it is set", async ({ demo }) => {
+test("the theme follows the browser's colour scheme unless it is set", async ({
+  demo,
+}) => {
+  await demo.page.emulateMedia({ colorScheme: "light" });
   await demo.open("basics");
   const editor = demo.page.locator(".cm-editor");
   await expect(editor).toHaveClass(/sg-light/);
-  await demo.page.getByLabel("Host").selectOption("dark");
+  await demo.page.emulateMedia({ colorScheme: "dark" });
   await expect(editor).toHaveClass(/sg-dark/);
   await demo.page.getByLabel("Theme").selectOption("light");
   await expect(editor).toHaveClass(/sg-light/);
   await demo.page.getByLabel("Theme").selectOption("dark");
-  await demo.page.getByLabel("Host").selectOption("light");
+  await demo.page.emulateMedia({ colorScheme: "light" });
   await expect(editor).toHaveClass(/sg-dark/);
 });
 

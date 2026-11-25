@@ -69,7 +69,8 @@ Staging can mark changes as reviewed: changes someone else made, such as a codin
 The repository holds a demo page: a plain web page that hosts the component in a browser, with a host of its own.
 
 * It loads sample documents chosen to exercise the hard cases: tables, nested lists, fences, front matter, long lines and a long manuscript.
-* Its spell-checker is a stub with a fixed word list, and it has a Light/Dark switch.
+* Its spell-checker is a stub with a fixed word list.
+* Its host never says whether it is light or dark, so the System theme follows the browser's `prefers-color-scheme`, as the page's own colours do.
 * It exposes the editor and the document's text on `window`, so a test, or an agent driving a browser, can type into the page and then check the source text byte for byte.
 * It applies the same content security policy as a VS Code webview, so code that would fail in VS Code fails here first.
 * It is a static site, published to GitHub Pages. Each language's grammar is a file of its own, fetched when a fence first names the language, as a VS Code extension's would be. Locally, a script serves the site and builds it again as the source changes.
