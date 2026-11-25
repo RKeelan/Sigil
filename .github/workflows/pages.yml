@@ -1,7 +1,7 @@
 name: Pages
 
 # Publishes the demo site to GitHub Pages. The repository's Pages source has to be set to
-# "GitHub Actions" for the deployment to be accepted. The job is skipped while the repository is
+# "GitHub Actions" for the deployment to be accepted. The jobs are skipped while the repository is
 # private.
 on:
   push:
@@ -17,13 +17,13 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
+# The site is uploaded in one job and deployed in another. In a single job, deploy-pages looks for
+# the artifact straight after the upload and often doesn't find it yet
+# (https://github.com/actions/deploy-pages/issues/451).
 jobs:
-  deploy:
+  build:
     if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
 
@@ -43,6 +43,13 @@ jobs:
         with:
           path: dist/demo
 
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v5
