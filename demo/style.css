@@ -1,16 +1,17 @@
-/* The demo page's own chrome. The editor styles itself. */
+/* The demo page's own chrome, which follows the browser's colour scheme. The editor styles itself. */
 :root {
   --bar-bg: #ecebe8;
   --bar-fg: #2b2a28;
   --bar-rule: #d0cec9;
-  color-scheme: light;
+  color-scheme: light dark;
 }
 
-:root[data-host="dark"] {
-  --bar-bg: #2b2b2e;
-  --bar-fg: #dddcd8;
-  --bar-rule: #44444a;
-  color-scheme: dark;
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bar-bg: #2b2b2e;
+    --bar-fg: #dddcd8;
+    --bar-rule: #44444a;
+  }
 }
 
 html,

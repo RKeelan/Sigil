@@ -2,7 +2,6 @@ import "../src/fonts.css";
 import "./style.css";
 import {
   type Host,
-  type Palette,
   type Settings,
   Sigil,
   type TextChange,
@@ -35,7 +34,6 @@ function control<T extends HTMLElement>(id: string): T {
 const parent = control<HTMLElement>("editor");
 const sampleSelect = control<HTMLSelectElement>("sample");
 const themeSelect = control<HTMLSelectElement>("theme");
-const hostSelect = control<HTMLSelectElement>("host");
 const numbers = control<HTMLInputElement>("numbers");
 const changes = control<HTMLInputElement>("changes");
 const nonce = document.querySelector<HTMLScriptElement>("script[nonce]")?.nonce;
@@ -53,7 +51,8 @@ let head = "";
 let edits: TextChange[][] = [];
 
 // The demo's host: the things a real host would do with a file system, Git and a dictionary,
-// done in memory.
+// done in memory. It never calls `setHostTheme`, since a web page has no theme of its own, so the
+// System theme follows the browser's `prefers-color-scheme`.
 const host: Host = {
   edit(changed) {
     edits.push([...changed]);
@@ -101,7 +100,6 @@ function load(name: string) {
     text: sample.text,
     host,
     settings: settings(),
-    hostTheme: hostSelect.value as Palette,
     nonce,
   });
   editor.setChanges({ index, head });
@@ -111,19 +109,12 @@ function load(name: string) {
   editor.focus();
 }
 
-function applyHost() {
-  document.documentElement.dataset.host = hostSelect.value;
-  editor?.setHostTheme(hostSelect.value as Palette);
-}
-
 sampleSelect.addEventListener("change", () => load(sampleSelect.value));
 themeSelect.addEventListener("change", () => editor.setSettings(settings()));
 numbers.addEventListener("change", () => editor.setSettings(settings()));
 changes.addEventListener("change", () => editor.setSettings(settings()));
-hostSelect.addEventListener("change", applyHost);
 window.addEventListener("hashchange", () => load(location.hash.slice(1)));
 
-applyHost();
 load(location.hash.slice(1));
 
 window.sigil = {

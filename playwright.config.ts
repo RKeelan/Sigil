@@ -14,6 +14,9 @@ export default defineConfig({
   use: {
     browserName: "chromium",
     viewport: { width: 1000, height: 800 },
+    // The browser reports a light colour scheme whatever the operating system is set to, so the
+    // page looks the same on every machine.
+    colorScheme: "light",
     baseURL: `http://localhost:${port}`,
   },
   webServer: {
