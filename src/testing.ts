@@ -5,7 +5,13 @@ import {
   type SelectionRange,
   type StateCommand,
 } from "@codemirror/state";
+import { fenceLanguage } from "./markdown/languages.ts";
 import { markdownLanguage } from "./markdown/parser.ts";
+
+/** Loads the grammars of the languages fences name, so that their code is parsed at once. */
+export async function loadLanguages(...names: string[]): Promise<void> {
+  await Promise.all(names.map((name) => fenceLanguage(name)?.load()));
+}
 
 /**
  * Builds a state from text in which `¦` marks a cursor and `«` and `»` enclose a selection.

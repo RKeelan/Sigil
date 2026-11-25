@@ -1,10 +1,5 @@
-import { dirname, join } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
 import { test as base, expect, type Page } from "@playwright/test";
 import type {} from "../demo/api.ts";
-
-const here = dirname(fileURLToPath(import.meta.url));
-const page = pathToFileURL(join(here, "..", "dist", "demo", "index.html")).href;
 
 /** The demo page with one sample loaded, and the things the tests do to it. */
 export class DemoPage {
@@ -17,9 +12,9 @@ export class DemoPage {
     });
   }
 
-  /** Opens the page on a sample document, from disk, as a user would. */
+  /** Opens the page on a sample document, as a user would. */
   async open(sample: string) {
-    await this.page.goto(`${page}#${sample}`);
+    await this.page.goto(`/#${sample}`);
     await this.page.locator(".cm-content").waitFor();
   }
 

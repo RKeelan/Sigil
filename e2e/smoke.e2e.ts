@@ -12,7 +12,7 @@ const samples = [
 ];
 
 for (const sample of samples) {
-  test(`loads ${sample} from disk without errors`, async ({ demo }) => {
+  test(`loads ${sample} without errors`, async ({ demo }) => {
     await demo.open(sample);
     await expect(demo.page.locator(".cm-line").first()).toBeVisible();
     expect((await demo.text()).length).toBeGreaterThan(100);

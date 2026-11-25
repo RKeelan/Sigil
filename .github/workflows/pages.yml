@@ -1,6 +1,6 @@
 name: Pages
 
-# Publishes the demo page to GitHub Pages. The repository's Pages source has to be set to
+# Publishes the demo site to GitHub Pages. The repository's Pages source has to be set to
 # "GitHub Actions" for the deployment to be accepted. The job is skipped while the repository is
 # private.
 on:
@@ -34,7 +34,7 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Build the demo page
+      - name: Build the demo site
         run: bun run build:demo
 
       - uses: actions/configure-pages@v6

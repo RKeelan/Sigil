@@ -1,11 +1,14 @@
-import { describe, expect, test } from "bun:test";
+import { beforeAll, describe, expect, test } from "bun:test";
 import { Text } from "@codemirror/state";
+import { loadLanguages } from "../testing.ts";
 import {
   documentType,
   frontMatterEnd,
   markdownParser,
   parseText,
 } from "./parser.ts";
+
+beforeAll(() => loadLanguages("js"));
 
 /** The names of the nodes a text parses to, with their extents. */
 function nodes(text: string): string[] {

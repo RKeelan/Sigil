@@ -20,7 +20,7 @@ import {
   WidgetType,
 } from "@codemirror/view";
 import { keepFrontMatterOpen } from "../frontmatter.ts";
-import { frontMatterEnd, parseText } from "../markdown/parser.ts";
+import { frontMatterEnd, loadGrammars, parseText } from "../markdown/parser.ts";
 import { renderLines } from "../render/dom.ts";
 import { measureIn } from "../render/measure.ts";
 import {
@@ -105,21 +105,37 @@ class RemovedLines extends WidgetType {
     const doc = view.dom.ownerDocument;
     const dom = doc.createElement("div");
     dom.className = `sg-removed sg-removed-${this.kind}`;
-    const src = {
-      doc: this.base,
-      tree: parseText(this.base),
-      frontMatterTo: frontMatterEnd(this.base),
-      measure: measureIn(view),
+    const draw = () => {
+      const src = {
+        doc: this.base,
+        tree: parseText(this.base),
+        frontMatterTo: frontMatterEnd(this.base),
+        measure: measureIn(view),
+      };
+      const lines = renderLines(src, this.from + 1, this.to, [], doc);
+      dom.replaceChildren(
+        ...lines.map((line, i) => {
+          const row = doc.createElement("div");
+          row.className = "sg-removed-row";
+          const number = row.appendChild(doc.createElement("span"));
+          number.className = "sg-removed-number";
+          number.textContent = String(this.from + 1 + i);
+          row.appendChild(line);
+          return row;
+        }),
+      );
     };
-    const lines = renderLines(src, this.from + 1, this.to, [], doc);
-    lines.forEach((line, i) => {
-      const row = dom.appendChild(doc.createElement("div"));
-      row.className = "sg-removed-row";
-      const number = row.appendChild(doc.createElement("span"));
-      number.className = "sg-removed-number";
-      number.textContent = String(this.from + 1 + i);
-      row.appendChild(line);
-    });
+    draw();
+    // Code in a language whose grammar is still loading is drawn plain, and again once it loads.
+    loadGrammars(this.base).then(
+      (loaded) => {
+        if (loaded) {
+          draw();
+          view.requestMeasure();
+        }
+      },
+      () => {},
+    );
     return dom;
   }
 

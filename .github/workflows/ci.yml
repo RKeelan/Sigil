@@ -35,7 +35,7 @@ jobs:
       - name: Test
         run: bun test
 
-      - name: Build the demo page
+      - name: Build the demo site
         run: bun run build:demo
 
       - name: Install the browser

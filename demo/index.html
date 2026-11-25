@@ -4,16 +4,18 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <!--
-      The policy a VS Code webview is given: nothing loads unless it is named here, scripts and
-      styles need the nonce, and there is no inline style attribute or eval. Code that would fail
-      in VS Code fails on this page first.
+      The policy a VS Code webview is given: nothing loads unless it is named here, scripts,
+      styles and fonts come from the site's own files, as a webview's come from its extension's,
+      the styles the editor adds need the nonce, and there is no inline style attribute or eval.
+      Code that would fail in VS Code fails on this page first.
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'nonce-{{nonce}}'; style-src 'nonce-{{nonce}}'; font-src data:; img-src data: https:"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'nonce-{{nonce}}'; font-src 'self'; img-src data: https:"
     />
     <title>Sigil demo</title>
-    <!--styles-->
+    <link rel="stylesheet" href="main.css" />
+    <script type="module" src="main.js" nonce="{{nonce}}"></script>
   </head>
   <body>
     <header class="bar">
@@ -41,6 +43,5 @@
       <label><input type="checkbox" id="changes" checked /> Changes</label>
     </header>
     <main id="editor"></main>
-    <!--script-->
   </body>
 </html>
