@@ -10,12 +10,17 @@ Sigil is a live-preview Markdown editor component built on CodeMirror 6, indepen
 - `bun fmt`: format; `bun fmt --check` checks without writing
 - `bun check`: type check
 - `bun test`: run the unit tests, which fail below 75% line or function coverage
-- `bun run build:demo`: build the demo page, `dist/demo/index.html`
-- `bun run test:e2e`: run the end-to-end tests, which drive the built demo page with Playwright
+- `bun run demo`: serve the demo site at http://localhost:5850, building it again whenever a file in `src` or `demo` changes
+- `bun run build:demo`: build the demo site into `dist/demo`, as GitHub Pages publishes it
+- `bun run test:e2e`: run the end-to-end tests, which drive the demo site with Playwright
+
+## Keeping the demo served
+
+While working on the component or the demo, keep `bun run demo` running in the background, so that the developer can try the latest version at http://localhost:5850 at any time. Start it at the beginning of the work if it isn't already running. It builds the site again when the source changes, and reloading the page shows the change. If something else holds the port, say so rather than serving the demo on another port, since the developer expects it at that address.
 
 ## Testing
 
-Unit tests sit beside the code as `*.test.ts` and run against a DOM with no layout, so they check structure and text. Anything that depends on how the page is laid out or painted is tested end to end, in `e2e/*.e2e.ts`. Rebuild the demo page before running the end-to-end tests, which test the built file.
+Unit tests sit beside the code as `*.test.ts` and run against a DOM with no layout, so they check structure and text. Anything that depends on how the page is laid out or painted is tested end to end, in `e2e/*.e2e.ts`. The end-to-end tests use the server `bun run demo` keeps running, or start one of their own, so they always test the current source.
 
 ## Dependency policy
 

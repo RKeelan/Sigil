@@ -11,14 +11,22 @@ describe("fenceName", () => {
 });
 
 describe("fenceLanguage", () => {
-  test("knows a language by any of its names", () => {
-    expect(fenceLanguage("ts")).toBe(fenceLanguage("typescript"));
-    expect(fenceLanguage("C#")).toBe(fenceLanguage("csharp"));
-    expect(fenceLanguage("bash")).toBe(fenceLanguage("sh"));
-    expect(fenceLanguage("ts")).not.toBe(fenceLanguage("js"));
+  test("knows a language by its name or any of its aliases", () => {
+    expect(fenceLanguage("TypeScript")?.name).toBe("TypeScript");
+    expect(fenceLanguage("ts")?.name).toBe("TypeScript");
+    expect(fenceLanguage("C#")?.name).toBe("C#");
+    expect(fenceLanguage("bash")?.name).toBe("Shell");
+    expect(fenceLanguage("erlang")?.name).toBe("Erlang");
   });
 
-  test("is null for a name it doesn't know, or none", () => {
+  test("knows a language by a file extension", () => {
+    expect(fenceLanguage("py")?.name).toBe("Python");
+    expect(fenceLanguage("rs")?.name).toBe("Rust");
+    expect(fenceLanguage("ps1")?.name).toBe("PowerShell");
+  });
+
+  test("is null for plain text, or a name it doesn't know, or none", () => {
+    expect(fenceLanguage("text")).toBeNull();
     expect(fenceLanguage("nonesuch")).toBeNull();
     expect(fenceLanguage("")).toBeNull();
   });

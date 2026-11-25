@@ -1,7 +1,10 @@
-import { describe, expect, test } from "bun:test";
+import { beforeAll, describe, expect, test } from "bun:test";
 import { Text } from "@codemirror/state";
-import { frontMatterEnd, parseText } from "../markdown/parser.ts";
+import { frontMatterEnd, loadGrammars, parseText } from "../markdown/parser.ts";
+import { loadLanguages } from "../testing.ts";
 import { buildPieces, type Piece, type Reveal } from "./pieces.ts";
+
+beforeAll(() => loadLanguages("js", "ts", "python", "sh", "diff"));
 
 const everything: Reveal = () => true;
 
@@ -277,6 +280,18 @@ describe("code in a fenced block", () => {
     expect(tokens("- a\n\n  ```js\n  let x;\n  ```")).toEqual([
       "let sg-tok-keyword",
     ]);
+  });
+
+  test("is plain until its language's grammar has loaded", async () => {
+    const source = "```erlang\nf() -> ok.\n```";
+    expect(tokens(source)).toEqual([]);
+    expect(await loadGrammars(Text.of(source.split("\n")))).toBe(true);
+    expect(tokens(source)).toContain("ok sg-tok-literal");
+    expect(await loadGrammars(Text.of(source.split("\n")))).toBe(false);
+  });
+
+  test("is left alone when it is named as plain text", () => {
+    expect(tokens("```text\n\\section{a}\n```")).toEqual([]);
   });
 
   test("is highlighted only on the lines asked for", () => {

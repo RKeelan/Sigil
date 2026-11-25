@@ -1,7 +1,10 @@
-import { describe, expect, test } from "bun:test";
+import { beforeAll, describe, expect, test } from "bun:test";
 import { Text } from "@codemirror/state";
 import { frontMatterEnd, parseText } from "../markdown/parser.ts";
+import { loadLanguages } from "../testing.ts";
 import { renderInline, renderLines, type Tint, widgetDOM } from "./dom.ts";
+
+beforeAll(() => loadLanguages("js"));
 
 /** The lines of a text rendered with no syntax shown, as HTML. */
 function html(source: string, tints: Tint[] = []): string[] {

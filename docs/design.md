@@ -43,7 +43,7 @@ The component knows nothing about its host. Its first host is a VS Code extensio
 * Nothing animates. Nothing on screen moves as state changes, except where live preview reveals syntax at the cursor, which it can't avoid. Syntax can be revealed for the element under the cursor or for the whole source line holding it. Whole-line reveal is the recommendation, being both simpler and steadier. A source line is usually a paragraph or a list item, so moving the cursor within one never moves text, and moving between them shifts only the line left and the line entered. Revealing only the element under the cursor would move text at every step along a line, which is worse while typing. Either way, a table or fenced block is revealed whole.
 * Headings are larger than the text, and keep their size whether or not the cursor is on them. A row's height changes only when a line becomes or stops being a heading.
 * The component has light and dark palettes of its own, and never takes its colours from the host.
-* Code in a fenced block is highlighted in the language its info string names, if that is one of the common languages the component bundles. They are bundled rather than loaded when a fence names one, so that a host serves no script but the component's own. Markdown in a fenced block is highlighted as code, not rendered.
+* Code in a fenced block is highlighted in the language its info string names, if CodeMirror's catalogue of languages has it. A language's grammar is loaded the first time a fence names it, so that a document pays only for the languages it uses; until it arrives, the block is shown uncoloured. Markdown in a fenced block is highlighted as code, not rendered.
 
 ## Host interface
 
@@ -72,7 +72,7 @@ The repository holds a demo page: a plain web page that hosts the component in a
 * Its spell-checker is a stub with a fixed word list, and it has a Light/Dark switch.
 * It exposes the editor and the document's text on `window`, so a test, or an agent driving a browser, can type into the page and then check the source text byte for byte.
 * It applies the same content security policy as a VS Code webview, so code that would fail in VS Code fails here first.
-* It is built as one self-contained file that opens from disk, so using it needs no local server, and it is published to GitHub Pages.
+* It is a static site, published to GitHub Pages. Each language's grammar is a file of its own, fetched when a fence first names the language, as a VS Code extension's would be. Locally, a script serves the site and builds it again as the source changes.
 
 The same page is what Playwright drives in CI.
 
@@ -86,6 +86,7 @@ The VS Code extension is a thin wrapper: a `CustomTextEditorProvider` that shows
 * Since VS Code 1.129, a custom editor registered with `"priority": "default"` stays out of diff and merge views unless it opts in ([issue #324791](https://github.com/microsoft/vscode/issues/324791)). The extension requires 1.129 or later and doesn't opt in, so VS Code's own diff view, merge editor and text editor stay available for Markdown files.
 * VS Code's Git extension has no public API for staging part of a file, so the extension runs `git` itself. It watches `.git/index` and `HEAD` so that staging done elsewhere reaches the view.
 * Spell-checking runs `cspell-lib`, the engine Code Spell Checker is built on, in the extension host. It reads `cspell.json` files itself, and the extension passes in VS Code's `cSpell.*` settings (`cSpell.language`, `cSpell.import`, `cSpell.customDictionaries` with `${workspaceFolder}` resolved, `cSpell.userWords`) as overrides. "Add to dictionary" writes where Code Spell Checker would, so a word added in either editor is known to both.
+* The webview's content security policy allows scripts from the extension's own files (`webview.cspSource`), so that a language's grammar can be loaded when a fence first names it.
 * The extension reports VS Code's theme as light or dark, from the `vscode-light` and `vscode-dark` classes on the webview's body, so System follows VS Code, which can itself follow the operating system.
 
 ## Open questions

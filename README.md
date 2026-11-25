@@ -39,7 +39,7 @@ Every member of `host` is optional, and a host that leaves one out goes without 
 
 ## Demo page
 
-`bun run build:demo` writes `dist/demo/index.html`, a page that hosts the editor in a browser with a host of its own: sample documents, a stub spell-checker and an index held in memory. It is one self-contained file that opens from disk, under the content security policy of a VS Code webview.
+`bun run demo` serves the demo site at http://localhost:5850: a page that hosts the editor in a browser with a host of its own, with sample documents, a stub spell-checker and an index held in memory. It builds the site again whenever the source changes. `bun run build:demo` writes the same site to `dist/demo`, which is what GitHub Pages publishes. The page runs under the content security policy of a VS Code webview, and fetches the grammar for a fenced block's language when a fence first names it.
 
 The page puts its editor on `window.sigil`, along with the document's text and what its host has been told, so that a test or an agent driving a browser can type into it and check the result. `demo/api.ts` lists what is there. The end-to-end tests in `e2e` drive this page with Playwright.
 
@@ -52,8 +52,9 @@ bun run lint:pkg     # check that package.json pins every dependency
 bun fmt              # format; bun fmt --check checks without writing
 bun check            # type check
 bun test             # run the unit tests, with coverage
-bun run build:demo   # build the demo page
-bun run test:e2e     # run the end-to-end tests against the built demo page
+bun run demo         # serve the demo site, building it again as the source changes
+bun run build:demo   # build the demo site into dist/demo
+bun run test:e2e     # run the end-to-end tests against the demo site
 ```
 
 The end-to-end tests need Playwright's browser, which `bunx playwright install chromium` installs.

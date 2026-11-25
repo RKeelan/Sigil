@@ -155,6 +155,23 @@ test("a fenced block's code is coloured by its language, in either theme", async
   expect(dark[1]).not.toBe(light[1]);
 });
 
+test("a language's grammar is fetched when a fence first names it", async ({
+  demo,
+}) => {
+  await demo.open("tables");
+  const scripts = () =>
+    demo.page.evaluate(
+      () =>
+        performance
+          .getEntriesByType("resource")
+          .filter((entry) => entry.name.endsWith(".js")).length,
+    );
+  const before = await scripts();
+  await demo.setText("intro\n\n```erlang\nf() -> ok.\n```\n", 0);
+  await expect(demo.page.locator(".sg-tok-literal")).toHaveText("ok");
+  expect(await scripts()).toBeGreaterThan(before);
+});
+
 test("front matter is folded behind a row that names its lines", async ({
   demo,
 }) => {
