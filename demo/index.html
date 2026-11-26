@@ -19,21 +19,43 @@
   </head>
   <body>
     <header class="bar">
-      <span class="name">Sigil</span>
-      <label>
-        Document
-        <select id="sample"></select>
-      </label>
-      <label>
-        Theme
-        <select id="theme">
-          <option value="system">System</option>
-          <option value="light">Light</option>
-          <option value="dark">Dark</option>
-        </select>
-      </label>
-      <label><input type="checkbox" id="numbers" checked /> Line numbers</label>
-      <label><input type="checkbox" id="changes" checked /> Changes</label>
+      <div class="brand">
+        <span class="name">Sigil</span>
+        <span class="tagline">A live-preview Markdown editor</span>
+      </div>
+      <div class="controls">
+        <label class="field">
+          <span class="caption">Document</span>
+          <select id="sample"></select>
+        </label>
+        <fieldset class="segmented" id="theme">
+          <legend class="caption">Theme</legend>
+          <label
+            ><input type="radio" name="theme" value="system" checked /><span
+              >System</span
+            ></label
+          >
+          <label
+            ><input type="radio" name="theme" value="light" /><span
+              >Light</span
+            ></label
+          >
+          <label
+            ><input type="radio" name="theme" value="dark" /><span
+              >Dark</span
+            ></label
+          >
+        </fieldset>
+        <label class="switch"
+          ><input type="checkbox" id="numbers" checked /> Line numbers</label
+        >
+        <label class="switch"
+          ><input type="checkbox" id="changes" checked /> Changes</label
+        >
+      </div>
+      <a class="source" href="https://github.com/RKeelan/Sigil"
+        >Source on GitHub</a
+      >
     </header>
     <main id="editor"></main>
   </body>

@@ -148,7 +148,7 @@ test("a fenced block's code is coloured by its language, in either theme", async
   ];
   const light = await colours();
   expect(new Set(light).size).toBe(3);
-  await demo.page.getByLabel("Theme").selectOption("dark");
+  await demo.page.getByRole("radio", { name: "Dark" }).check();
   await expect(demo.page.locator(".cm-editor")).toHaveClass(/sg-dark/);
   const dark = await colours();
   expect(new Set(dark).size).toBe(3);
@@ -227,11 +227,16 @@ test("the theme follows the browser's colour scheme unless it is set", async ({
   await expect(editor).toHaveClass(/sg-light/);
   await demo.page.emulateMedia({ colorScheme: "dark" });
   await expect(editor).toHaveClass(/sg-dark/);
-  await demo.page.getByLabel("Theme").selectOption("light");
+  await demo.page.getByRole("radio", { name: "Light" }).check();
   await expect(editor).toHaveClass(/sg-light/);
-  await demo.page.getByLabel("Theme").selectOption("dark");
+  await demo.page.getByRole("radio", { name: "Dark" }).check();
   await demo.page.emulateMedia({ colorScheme: "light" });
   await expect(editor).toHaveClass(/sg-dark/);
+  // The page's own bar follows the same setting.
+  await expect(demo.page.locator(".bar")).toHaveCSS(
+    "background-color",
+    "rgb(24, 24, 24)",
+  );
 });
 
 test("the margin rule runs the full height of the view", async ({ demo }) => {

@@ -5,6 +5,7 @@ import changes from "./samples/changes.md" with { type: "text" };
 import code from "./samples/code.md" with { type: "text" };
 import frontMatter from "./samples/front-matter.md" with { type: "text" };
 import lists from "./samples/lists.md" with { type: "text" };
+import longCode from "./samples/long-code.md" with { type: "text" };
 import longLines from "./samples/long-lines.md" with { type: "text" };
 import tables from "./samples/tables.md" with { type: "text" };
 
@@ -73,6 +74,7 @@ export const samples: Sample[] = [
   { name: "code", title: "Code", text: code },
   { name: "front-matter", title: "Front matter", text: frontMatter },
   { name: "long-lines", title: "Long lines", text: longLines },
+  { name: "long-code", title: "Long code", text: longCode },
   {
     name: "changes",
     title: "Changes",
