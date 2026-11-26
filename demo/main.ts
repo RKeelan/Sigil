@@ -33,7 +33,7 @@ function control<T extends HTMLElement>(id: string): T {
 
 const parent = control<HTMLElement>("editor");
 const sampleSelect = control<HTMLSelectElement>("sample");
-const themeSelect = control<HTMLSelectElement>("theme");
+const themeGroup = control<HTMLFieldSetElement>("theme");
 const numbers = control<HTMLInputElement>("numbers");
 const changes = control<HTMLInputElement>("changes");
 const nonce = document.querySelector<HTMLScriptElement>("script[nonce]")?.nonce;
@@ -74,9 +74,21 @@ const host: Host = {
   },
 };
 
+function theme(): Settings["theme"] {
+  const chosen = themeGroup.querySelector<HTMLInputElement>("input:checked");
+  return (chosen?.value ?? "system") as Settings["theme"];
+}
+
+/** Sets the page's own colours to the theme the editor is given. */
+function paint() {
+  const value = theme();
+  if (value === "system") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = value;
+}
+
 function settings(): Settings {
   return {
-    theme: themeSelect.value as Settings["theme"],
+    theme: theme(),
     lineNumbers: numbers.checked,
     showChanges: changes.checked,
     snippets: [
@@ -110,7 +122,10 @@ function load(name: string) {
 }
 
 sampleSelect.addEventListener("change", () => load(sampleSelect.value));
-themeSelect.addEventListener("change", () => editor.setSettings(settings()));
+themeGroup.addEventListener("change", () => {
+  paint();
+  editor.setSettings(settings());
+});
 numbers.addEventListener("change", () => editor.setSettings(settings()));
 changes.addEventListener("change", () => editor.setSettings(settings()));
 window.addEventListener("hashchange", () => load(location.hash.slice(1)));
