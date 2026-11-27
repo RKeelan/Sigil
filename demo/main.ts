@@ -33,6 +33,7 @@ function control<T extends HTMLElement>(id: string): T {
 
 const parent = control<HTMLElement>("editor");
 const sampleSelect = control<HTMLSelectElement>("sample");
+const measureSelect = control<HTMLSelectElement>("measure");
 const themeGroup = control<HTMLFieldSetElement>("theme");
 const revealGroup = control<HTMLFieldSetElement>("reveal");
 const numbers = control<HTMLInputElement>("numbers");
@@ -109,6 +110,7 @@ function settings(): Settings {
   return {
     theme: theme(),
     lineNumbers: numbers.checked,
+    measure: measureSelect.value ? Number(measureSelect.value) : null,
     reveal: reveal(),
     showChanges: changes.checked,
     snippets: [
@@ -147,6 +149,7 @@ themeGroup.addEventListener("change", () => {
   paint();
   editor.setSettings(settings());
 });
+measureSelect.addEventListener("change", () => editor.setSettings(settings()));
 revealGroup.addEventListener("change", () => editor.setSettings(settings()));
 numbers.addEventListener("change", () => editor.setSettings(settings()));
 changes.addEventListener("change", () => editor.setSettings(settings()));

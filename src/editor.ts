@@ -20,7 +20,12 @@ import {
 } from "./render/preview.ts";
 import { type Snippet, snippets } from "./snippets.ts";
 import { type Misspelling, spellCheck } from "./spell.ts";
-import { baseTheme, type Palette, paletteTheme } from "./theme.ts";
+import {
+  baseTheme,
+  measureTheme,
+  type Palette,
+  paletteTheme,
+} from "./theme.ts";
 
 /** One replacement in a text: the characters from `from` to `to` become `insert`. */
 export interface TextChange {
@@ -52,6 +57,11 @@ export interface Settings {
   theme: Palette | "system";
   lineNumbers: boolean;
   /**
+   * The length of a line of text, in characters of English prose, or null to fill the view. The
+   * text is set in a column this wide, centred in the view.
+   */
+  measure: number | null;
+  /**
    * How much raw source the cursor reveals: the whole of each line it is on, or only the
    * constructs it touches. See docs/design.md for what counts as a construct.
    */
@@ -64,6 +74,7 @@ export interface Settings {
 export const defaultSettings: Settings = {
   theme: "system",
   lineNumbers: true,
+  measure: 90,
   reveal: "line",
   showChanges: true,
   snippets: [],
@@ -105,6 +116,7 @@ export class Sigil {
   private readonly now: () => Date;
   private readonly theme = new Compartment();
   private readonly numbers = new Compartment();
+  private readonly measure = new Compartment();
   private readonly scope = new Compartment();
   private readonly changes = new Compartment();
   private readonly snippetList = new Compartment();
@@ -143,6 +155,7 @@ export class Sigil {
       this.changes.of(this.changesExtension()),
       baseTheme(),
       this.theme.of(paletteTheme(this.palette())),
+      this.measure.of(measureTheme(this.current.measure)),
       EditorView.updateListener.of((update) => {
         for (const tr of update.transactions) this.report(tr);
       }),
@@ -213,6 +226,7 @@ export class Sigil {
       effects: [
         this.theme.reconfigure(paletteTheme(this.palette())),
         this.numbers.reconfigure(this.current.lineNumbers ? lineNumbers() : []),
+        this.measure.reconfigure(measureTheme(this.current.measure)),
         this.scope.reconfigure(revealScope.of(this.current.reveal)),
         this.changes.reconfigure(this.changesExtension()),
         this.snippetList.reconfigure(this.snippetExtension()),

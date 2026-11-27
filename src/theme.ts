@@ -396,6 +396,40 @@ const styles = EditorView.theme({
   ".sg-action:hover": { backgroundColor: "var(--sg-code-bg)" },
 });
 
+/**
+ * The average width of a character of English prose set in Source Serif 4, spaces included, as a
+ * fraction of the font's size. `ch` is the width of a zero, which is wider than the average letter,
+ * so a measure given in `ch` would set lines about a tenth longer than it says.
+ */
+const characterWidth = 0.48;
+
+/** The padding on either side of a line's text: `--sg-pad` before it and 1.4em after. */
+const linePadding = 2.5;
+
+/**
+ * Limits the text to a column `measure` characters wide, centred in the view with the gutters
+ * beside it, or lets it fill the view when `measure` is null. The scroller still fills the view, so
+ * the scroll bar stays at its edge.
+ */
+export function measureTheme(measure: number | null): Extension {
+  if (measure === null) return [];
+  // The free space beside the column goes to auto margins on the outermost of the gutters and
+  // the content, whichever of them are there.
+  return EditorView.theme({
+    ".cm-content": {
+      maxWidth: `${measure * characterWidth + linePadding}em`,
+    },
+    ".cm-gutters.cm-gutters-before": { marginLeft: "auto" },
+    ".cm-gutters.cm-gutters-after": { marginRight: "auto" },
+    ".cm-scroller:not(:has(> .cm-gutters-before)) > .cm-content": {
+      marginLeft: "auto",
+    },
+    ".cm-scroller:not(:has(> .cm-gutters-after)) > .cm-content": {
+      marginRight: "auto",
+    },
+  });
+}
+
 /** The component's fixed styles. Colours come from the palette that `paletteTheme` selects. */
 export function baseTheme(): Extension {
   return styles;
