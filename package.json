@@ -1,6 +1,6 @@
 {
   "name": "sigil",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "A live-preview Markdown editor component built on CodeMirror 6",
   "type": "module",
   "license": "MIT",
@@ -9,6 +9,14 @@
     "type": "git",
     "url": "git+https://github.com/RKeelan/Sigil.git"
   },
+  "files": [
+    "src",
+    "!src/**/*.test.ts",
+    "!src/testing.ts",
+    "!src/test-setup.ts",
+    "LICENSE",
+    "README.md"
+  ],
   "exports": {
     ".": "./src/index.ts",
     "./fonts.css": "./src/fonts.css"

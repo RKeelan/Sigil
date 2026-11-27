@@ -63,3 +63,12 @@ bun run test:e2e     # run the end-to-end tests against the demo site
 ```
 
 The end-to-end tests need Playwright's browser, which `bunx playwright install chromium` installs.
+
+## Releasing
+
+Sigil is released as Git tags, which a host depends on as `github:RKeelan/Sigil#vX.Y.Z`. To release a version:
+
+- Set the version in `package.json` and the `version` constant in `src/index.ts`, and merge the change.
+- Tag the merged commit on `main` as `vX.Y.Z` and push the tag.
+
+Pushing the tag runs the release workflow, which checks that the tag matches `package.json`, runs the same checks as CI, and creates a GitHub Release with generated notes.
