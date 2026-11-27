@@ -87,13 +87,6 @@ const marginRule = `linear-gradient(to right, ${rule} 0 1px, transparent 1px 3px
 const headingRules: Record<string, Record<string, string>> = {};
 headings.forEach((size, i) => {
   headingRules[`.sg-h${i + 1}`] = { fontSize: `${size}em` };
-  // The strut that lines a heading's number up with the heading's baseline.
-  headingRules[`.sg-number-h${i + 1}::before`] = {
-    content: '"\\200b"',
-    fontSize: `${size}em`,
-    lineHeight: String(headingLeading),
-    fontWeight: headingWeight,
-  };
 });
 
 const styles = EditorView.theme({
@@ -160,6 +153,8 @@ const styles = EditorView.theme({
     backgroundRepeat: "no-repeat",
   },
   ".sg-numbers": { fontVariantNumeric: "tabular-nums lining-nums" },
+  // A number is moved to the middle of its line's first row, without moving anything else.
+  ".sg-number": { position: "relative" },
   ".sg-numbers .cm-gutterElement": {
     padding: "0 0.75em 0 0.9em",
     textAlign: "right",

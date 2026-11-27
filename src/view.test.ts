@@ -261,22 +261,6 @@ describe("line numbers", () => {
     sigil.setText("a");
     expect(numbers(sigil)[0]).toBe("0000");
   });
-
-  test("carry a heading's size, so as to sit on its baseline", () => {
-    const sigil = open("text\n\n## Heading\n\nSetext\n===\n\n> # Quoted");
-    const classes = [
-      ...sigil.view.dom.querySelectorAll(".sg-numbers .sg-number"),
-    ].map((number) => number.className);
-    expect(classes.slice(1)).toEqual([
-      "sg-number",
-      "sg-number",
-      "sg-number sg-number-h2",
-      "sg-number",
-      "sg-number sg-number-h1",
-      "sg-number",
-      "sg-number sg-number-h1",
-    ]);
-  });
 });
 
 describe("front matter", () => {
