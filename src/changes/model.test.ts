@@ -3,12 +3,14 @@ import { Text } from "@codemirror/state";
 import {
   type Block,
   blockKey,
+  blocksAfterStaging,
   buildBlocks,
   diffLines,
   indexAfter,
   lineEdits,
   linesOf,
   removals,
+  updateBlocks,
 } from "./model.ts";
 
 const lines = (text: string) => text.split("\n");
@@ -197,6 +199,153 @@ describe("buildBlocks", () => {
   test("shows no edits in a change that can't show them", () => {
     const blocks = buildBlocks(lines("a cat"), lines("a hat"), () => false);
     expect(summary(blocks)).toEqual(["0-1 removed 0-1 at 0"]);
+  });
+});
+
+/**
+ * Fails unless the blocks describe the document exactly: in order, each a real difference, and
+ * the lines between them the same in the index and the document.
+ */
+function expectDescribes(
+  blocks: readonly Block[],
+  index: readonly string[],
+  doc: readonly string[],
+) {
+  let a = 0;
+  let b = 0;
+  const gap = (toA: number, toB: number) => {
+    expect(toA - a).toBe(toB - b);
+    expect(index.slice(a, toA)).toEqual(doc.slice(b, toB));
+  };
+  for (const { hunk, edits, removals: runs } of blocks) {
+    gap(hunk.fromA, hunk.fromB);
+    expect(hunk.toA > hunk.fromA || hunk.toB > hunk.fromB).toBe(true);
+    expect(index.slice(hunk.fromA, hunk.toA)).not.toEqual(
+      doc.slice(hunk.fromB, hunk.toB),
+    );
+    expect(edits).toEqual(lineEdits(index, doc, hunk));
+    expect(runs).toEqual(removals(hunk, edits));
+    for (const edit of edits) {
+      expect(edit.a >= hunk.fromA && edit.a < hunk.toA).toBe(true);
+      expect(edit.b >= hunk.fromB && edit.b < hunk.toB).toBe(true);
+    }
+    a = hunk.toA;
+    b = hunk.toB;
+  }
+  gap(index.length, doc.length);
+}
+
+describe("updateBlocks", () => {
+  // A small, seeded generator, so that a failure can be reproduced.
+  let seed = 1;
+  const random = (below: number) => {
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    return Math.floor((seed / 2147483648) * below);
+  };
+  const vocabulary = [
+    "",
+    "",
+    "one",
+    "two",
+    "the quick brown fox",
+    "the quick brown cat",
+  ];
+  const someLines = (count: number) =>
+    Array.from(
+      { length: count },
+      () => vocabulary[random(vocabulary.length)] as string,
+    );
+
+  test("keeps describing the document through many edits and stagings", () => {
+    for (let round = 0; round < 50; round++) {
+      let index = someLines(1 + random(30));
+      let doc = [...index];
+      for (let i = 0; i < 5; i++) {
+        const at = random(doc.length + 1);
+        doc.splice(at, random(3), ...someLines(random(3)));
+      }
+      if (doc.length === 0) doc = [""];
+      let blocks = buildBlocks(index, doc);
+      for (let step = 0; step < 20; step++) {
+        if (blocks.length > 0 && random(4) === 0) {
+          const staged = blocks[random(blocks.length)] as Block;
+          index = indexAfter(staged, index, doc);
+          blocks = blocksAfterStaging(blocks, staged);
+        } else {
+          // Replace some lines, as an edit to the document's text would.
+          const from = random(doc.length);
+          const to = Math.min(doc.length, from + 1 + random(3));
+          const put = someLines(1 + random(3));
+          doc = [...doc.slice(0, from), ...put, ...doc.slice(to)];
+          blocks = updateBlocks(blocks, index, doc, {
+            from,
+            to,
+            length: put.length,
+          });
+        }
+        expectDescribes(blocks, index, doc);
+      }
+    }
+  });
+
+  test("leaves the changes away from an edit as they were", () => {
+    const index = lines("a\n\nb\n\nc\n\nd");
+    let doc = lines("A\n\nb\n\nC\n\nD");
+    const blocks = buildBlocks(index, doc);
+    doc = lines("A\n\nb\n\nCC\n\nD");
+    const after = updateBlocks(blocks, index, doc, {
+      from: 4,
+      to: 5,
+      length: 1,
+    });
+    expectDescribes(after, index, doc);
+    expect(after[0]).toBe(blocks[0] as Block);
+    expect(after[2]).toBe(blocks[2] as Block);
+  });
+
+  test("moves the changes after an edit with the lines it puts in", () => {
+    const index = lines("a\n\nb\n\nc");
+    let doc = lines("A\n\nb\n\nC");
+    const blocks = buildBlocks(index, doc);
+    doc = lines("A\nnew\n\nb\n\nC");
+    const after = updateBlocks(blocks, index, doc, {
+      from: 0,
+      to: 1,
+      length: 2,
+    });
+    expectDescribes(after, index, doc);
+    expect(after.map(blockKey)).toEqual(["0:1:0:2", "4:5:5:6"]);
+  });
+
+  test("finds a change the edit undid, and one it made", () => {
+    const index = lines("a\nb\nc");
+    const blocks = buildBlocks(index, lines("a\nB\nc"));
+    expect(
+      updateBlocks(blocks, index, lines("a\nb\nc"), {
+        from: 1,
+        to: 2,
+        length: 1,
+      }),
+    ).toEqual([]);
+    const made = updateBlocks([], index, lines("a\nb\nC"), {
+      from: 2,
+      to: 3,
+      length: 1,
+    });
+    expect(made.map(blockKey)).toEqual(["2:3:2:3"]);
+  });
+});
+
+describe("blocksAfterStaging", () => {
+  test("drops the staged change and moves the later ones in the index", () => {
+    const index = lines("a\n\nb\n\nc");
+    const doc = lines("a\nx\ny\n\nB\n\nc\nz");
+    const blocks = buildBlocks(index, doc);
+    const staged = blocks[0] as Block;
+    const after = blocksAfterStaging(blocks, staged);
+    const newIndex = indexAfter(staged, index, doc);
+    expectDescribes(after, newIndex, doc);
+    expect(after).toEqual(buildBlocks(newIndex, doc));
   });
 });
 
