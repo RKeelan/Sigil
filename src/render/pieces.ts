@@ -72,8 +72,18 @@ export interface Source {
   measure?: Measure;
 }
 
-/** Whether the source between two positions is shown as typed rather than rendered. */
-export type Reveal = (from: number, to: number) => boolean;
+/** A stretch of the document. */
+export interface Span {
+  from: number;
+  to: number;
+}
+
+/**
+ * Whether a piece of syntax, from `from` to `to`, is shown as typed rather than rendered.
+ * `construct` is the construct the syntax belongs to, such as the emphasised span an emphasis
+ * mark opens, when it is more than the syntax itself.
+ */
+export type Reveal = (from: number, to: number, construct?: Span) => boolean;
 
 const never: Reveal = () => false;
 
@@ -205,7 +215,7 @@ function blocks(
           }
           return false;
         default:
-          return inline(node, src, reveal(node.from, node.to), out);
+          return inline(node, src, reveal, out);
       }
     },
   });
@@ -238,7 +248,7 @@ function headerMark(
     return;
   }
   const line = src.doc.lineAt(node.from);
-  if (reveal(line.from, line.to)) {
+  if (reveal(node.from, node.to, parent)) {
     out.push(mark(node, "sg-syntax"));
     return;
   }
@@ -309,9 +319,10 @@ function code(
 function inline(
   node: SyntaxNodeRef,
   src: Source,
-  shown: boolean,
+  reveal: Reveal,
   out: Piece[],
 ): boolean | undefined {
+  const shown = (construct?: Span) => reveal(node.from, node.to, construct);
   switch (node.name) {
     case "Emphasis":
       out.push(mark(node, "sg-em"));
@@ -328,17 +339,20 @@ function inline(
     case "EmphasisMark":
     case "StrikethroughMark":
     case "CodeMark":
-      syntax(node, shown, out);
+      // A mark belongs to the span it opens or closes.
+      syntax(node, shown(node.node.parent ?? undefined), out);
       return false;
     case "Link":
-      link(node.node, src, shown, out);
+      link(node.node, src, shown(), out);
       return;
     case "Image":
-      return image(node.node, src, shown, out);
-    case "Autolink":
+      return image(node.node, src, shown(), out);
+    case "Autolink": {
+      const show = shown();
       for (const child of node.node.getChildren("LinkMark"))
-        syntax(child, shown, out);
+        syntax(child, show, out);
       return;
+    }
     case "URL": {
       const parent = node.node.parent?.name;
       if (parent !== "Link" && parent !== "Image" && parent !== "LinkReference")
@@ -346,7 +360,7 @@ function inline(
       return false;
     }
     case "Escape":
-      syntax({ from: node.from, to: node.from + 1 }, shown, out);
+      syntax({ from: node.from, to: node.from + 1 }, shown(), out);
       return false;
     case "HardBreak":
       // The node takes in the line break. Only the backslash is marked.
@@ -412,7 +426,7 @@ function cellPieces(cell: SyntaxNode, src: Source): Piece[] {
   const out: Piece[] = [];
   cell.cursor().iterate((node) => {
     if (node.name === "TableCell") return;
-    return inline(node, src, false, out);
+    return inline(node, src, never, out);
   });
   return out;
 }
@@ -583,7 +597,7 @@ const glyphs: Record<string, string> = { "*": "•", "-": "–", "+": "+" };
 /**
  * Lays out what comes before each line's content: quote marks, indentation and list markers.
  * Each goes in a box of fixed width, and the line is padded so that wrapped rows hang under the
- * content's first row. The boxes are the same whether or not the line's syntax is shown, so
+ * content's first row. The boxes are the same whether or not their syntax is shown, so
  * moving the cursor onto a list item or into a quote doesn't move its text.
  */
 function prefixes(
@@ -613,7 +627,6 @@ function prefixes(
       if (mono.has(line.from)) monospace(line.from);
       continue;
     }
-    const shown = reveal(line.from, line.to);
     let boxes = 0;
     for (const token of prefix.tokens) {
       switch (token.type) {
@@ -633,7 +646,7 @@ function prefixes(
             kind: "mark",
             from: token.from,
             to: token.to,
-            cls: shown
+            cls: reveal(token.from, token.to)
               ? "sg-box sg-quote sg-syntax"
               : "sg-box sg-quote sg-unseen",
           });
@@ -650,7 +663,7 @@ function prefixes(
         case "marker": {
           boxes += INDENT;
           const { item } = token;
-          if (item.ordered || shown) {
+          if (item.ordered || reveal(token.from, token.to)) {
             out.push({
               kind: "mark",
               from: token.from,

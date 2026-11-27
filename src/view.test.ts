@@ -82,6 +82,13 @@ describe("live preview", () => {
     expect(drawn(sigil)).toEqual(["a", "", "*b*"]);
   });
 
+  test("keeps the shown lines through an edit while a mouse button is down", () => {
+    const sigil = open("*a*\n\n*b*");
+    mousedown(sigil.view.contentDOM.querySelector(".cm-line"));
+    sigil.view.dispatch({ changes: { from: 0, insert: "x" } });
+    expect(drawn(sigil)).toEqual(["x*a*", "", "b"]);
+  });
+
   test("draws a picture in place of its source", () => {
     const sigil = open("intro\n\n![alt](pic.png)");
     const image = sigil.view.contentDOM.querySelector("img.sg-image");
@@ -102,6 +109,102 @@ describe("live preview", () => {
     sigil.view.scrollDOM.style.fontSize = "30px";
     expect(remeasure(sigil.view)).toBe(true);
     expect(remeasure(sigil.view, true)).toBe(true);
+  });
+});
+
+describe("live preview, revealing constructs", () => {
+  /** What the editor draws with the cursor at the `¦` in a text. */
+  function at(marked: string): string[] {
+    editor?.destroy();
+    const anchor = marked.indexOf("¦");
+    const sigil = open(marked.replace("¦", ""), {
+      settings: { reveal: "construct" },
+    });
+    sigil.view.dispatch({ selection: { anchor } });
+    return drawn(sigil);
+  }
+
+  test("shows the syntax of the span the cursor is in, and no other", () => {
+    expect(at(`so¦me **bold** and [link](u) here`)).toEqual([
+      "some bold and link here",
+    ]);
+    expect(at(`some **bo¦ld** and [link](u) here`)).toEqual([
+      "some **bold** and link here",
+    ]);
+    expect(at(`some **bold** and [li¦nk](u) here`)).toEqual([
+      "some bold and [link](u) here",
+    ]);
+  });
+
+  test("counts a cursor at either end of a span as touching it", () => {
+    expect(at("a ¦*b* c")).toEqual(["a *b* c"]);
+    expect(at("a *b*¦ c")).toEqual(["a *b* c"]);
+    expect(at("a *b* ¦c")).toEqual(["a b c"]);
+    expect(at("*a*¦**b**")).toEqual(["*a***b**"]);
+  });
+
+  test("shows every span around the cursor, but not those beside it", () => {
+    expect(at("**a *b* c¦**")).toEqual(["**a b c**"]);
+    expect(at("**a *b¦* c**")).toEqual(["**a *b* c**"]);
+  });
+
+  test("shows code spans, escapes and addresses", () => {
+    expect(at("x `co¦de` y")).toEqual(["x `code` y"]);
+    expect(at("x `code` ¦y")).toEqual(["x code y"]);
+    expect(at("x \\¦* y")).toEqual(["x \\* y"]);
+    expect(at("x \\* ¦y")).toEqual(["x * y"]);
+    expect(at("<http://a.b¦>")).toEqual(["<http://a.b>"]);
+  });
+
+  test("shows a heading's marks from anywhere in the heading", () => {
+    expect(at("# Ti¦tle *x*\n\ntext")).toEqual(["# Title x", "", "text"]);
+    expect(at("# Title\n\nte¦xt")).toEqual(["Title", "", "text"]);
+  });
+
+  test("shows a list marker, task box or quote mark only where the cursor touches it", () => {
+    expect(at("- it¦em\n- next")).toEqual(["– item", "– next"]);
+    expect(at("- ¦item\n- next")).toEqual(["- item", "– next"]);
+    // A task's bullet and its box are drawn with no text of their own.
+    expect(at("- [ ] ta¦sk")[0]?.trim()).toBe("task");
+    expect(at("- [ ]¦ task")[0]?.trim()).toBe("[ ] task");
+    const quoteShown = (marked: string) => {
+      at(marked);
+      const mark = editor?.view.contentDOM.querySelector(".sg-quote");
+      return mark?.classList.contains("sg-syntax");
+    };
+    expect(quoteShown("> quo¦te")).toBe(false);
+    expect(quoteShown(">¦ quote")).toBe(true);
+  });
+
+  test("shows a table or fenced block as a whole", () => {
+    expect(at("```\nco¦de\n```")).toEqual(["```", "code", "```"]);
+    expect(at("| a | b |\n|---|---|\n| 1¦ | 2 |")).toEqual([
+      "| a | b |",
+      "|---|---|",
+      "| 1 | 2 |",
+    ]);
+  });
+
+  test("changes from revealing lines while the editor is open", () => {
+    const sigil = open("some *text* here");
+    sigil.view.dispatch({ selection: { anchor: 1 } });
+    expect(drawn(sigil)).toEqual(["some *text* here"]);
+    sigil.setSettings({ reveal: "construct" });
+    expect(drawn(sigil)).toEqual(["some text here"]);
+    sigil.setSettings({ reveal: "line" });
+    expect(drawn(sigil)).toEqual(["some *text* here"]);
+  });
+
+  test("keeps what it shows as it is while a mouse button is down", () => {
+    const sigil = open("*a* *b*", { settings: { reveal: "construct" } });
+    sigil.view.dispatch({ selection: { anchor: 1 } });
+    mousedown(sigil.view.contentDOM.querySelector(".cm-line"));
+    sigil.view.dispatch({ selection: { anchor: 5 } });
+    expect(drawn(sigil)).toEqual(["*a* b"]);
+    sigil.view.dispatch({ changes: { from: 0, insert: "x" } });
+    expect(drawn(sigil)).toEqual(["x*a* b"]);
+    document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+    expect(drawn(sigil)).toEqual(["xa *b*"]);
   });
 });
 

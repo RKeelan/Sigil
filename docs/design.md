@@ -40,10 +40,25 @@ The component knows nothing about its host. Its first host is a VS Code extensio
 
 ## Appearance
 
-* Nothing animates. Nothing on screen moves as state changes, except where live preview reveals syntax at the cursor, which it can't avoid. Syntax can be revealed for the element under the cursor or for the whole source line holding it. Whole-line reveal is the recommendation, being both simpler and steadier. A source line is usually a paragraph or a list item, so moving the cursor within one never moves text, and moving between them shifts only the line left and the line entered. Revealing only the element under the cursor would move text at every step along a line, which is worse while typing. Either way, a table or fenced block is revealed whole.
+* Nothing animates. Nothing on screen moves as state changes, except where live preview reveals syntax at the cursor, which it can't avoid.
+* A reveal scope setting says how much syntax the cursor reveals: the syntax on every source line the selection touches (line scope, the default), or only the syntax of the constructs the selection touches (construct scope; see Revealing constructs). Line scope is the steadier of the two. A source line is usually a paragraph or a list item, so moving the cursor within one never moves text, and moving between them shifts only the line left and the line entered. Construct scope shows less raw source, but moves text each time the cursor enters or leaves a construct, which is worse while typing. In either scope, a table or fenced block is revealed whole.
 * Headings are larger than the text, and keep their size whether or not the cursor is on them. A row's height changes only when a line becomes or stops being a heading.
 * The component has light and dark palettes of its own, and never takes its colours from the host.
 * Code in a fenced block is highlighted in the language its info string names, if CodeMirror's catalogue of languages has it. A language's grammar is loaded the first time a fence names it, so that a document pays only for the languages it uses; until it arrives, the block is shown uncoloured. Markdown in a fenced block is highlighted as code, not rendered.
+
+## Revealing constructs
+
+In construct scope, each piece of syntax belongs to one construct, and is shown as typed while the selection touches that construct. A selection touches a construct when the two overlap or meet, so a cursor just before a construct's first character or just after its last touches it, which lets the user step into a construct's marks from either side and delete them.
+
+* An emphasis, strong emphasis, strikethrough or code span mark belongs to the span it opens or closes, from the opening mark to the closing one. Spans nest, and the cursor reveals every span around it but none beside it: in `**a *b* c**`, a cursor in `c` shows the `**` marks and hides the `*` marks, and a cursor in `b` shows both.
+* A link's brackets, destination and title belong to the whole link, from `[` to the closing `)` or `]`. An image's source belongs to the whole image, and an autolink's angle brackets to the whole autolink.
+* A backslash escape is a construct of its own: the backslash and the character it escapes.
+* An ATX heading's `#` marks, opening and closing, belong to the whole heading, so the cursor anywhere in a heading shows them. Syntax inside a heading, such as emphasis, belongs to its own construct as usual.
+* A list item's marker, with the space after it, is a construct of its own, and so is a task's box (`[ ]`), each `>` of a quote with the space after it, a fenced quote's `>>>` line and a thematic break. The cursor anywhere else in a list item or quote leaves its marks rendered. These marks sit in boxes of fixed width, so showing them changes a glyph but never moves text.
+* A table or a fenced block is one construct: the cursor anywhere in it shows all of its source.
+* A setext heading's underline, a link reference definition, a hard break's backslash and HTML are always shown as typed, in either scope.
+
+Plain text has no syntax, so a cursor in a plain word reveals nothing.
 
 ## Host interface
 

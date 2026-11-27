@@ -77,6 +77,31 @@ describe("inline syntax", () => {
     ]);
   });
 
+  test("is asked about with the construct it belongs to", () => {
+    // Reveals syntax whose construct is the innermost span, from 8 to 11.
+    const inner: Reveal = (from, to, construct) => {
+      const span = construct ?? { from, to };
+      return span.from === 8 && span.to === 11;
+    };
+    expect(pieces("*a* **b *c***", inner)).toEqual([
+      "mark 0-3 sg-em",
+      "hide 0-1",
+      "hide 2-3",
+      "mark 4-13 sg-strong",
+      "hide 4-6",
+      "mark 8-11 sg-em",
+      "mark 8-9 sg-syntax",
+      "mark 10-11 sg-syntax",
+      "hide 11-13",
+    ]);
+    const heading: Reveal = (_from, _to, construct) => construct?.from === 0;
+    expect(pieces("## Title", heading)).toEqual([
+      "line 0 sg-heading sg-heading-2",
+      "mark 0-8 sg-h sg-h2",
+      "mark 0-2 sg-syntax",
+    ]);
+  });
+
   test("a link keeps its text and hides its address", () => {
     expect(pieces('[text](http://a.b "t")')).toEqual([
       'mark 1-5 sg-link {"title":"http://a.b"}',

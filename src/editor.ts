@@ -12,7 +12,11 @@ import { frontMatterFold, initialCursor } from "./frontmatter.ts";
 import { lineNumbers } from "./gutter.ts";
 import { editingKeys } from "./keys/keymap.ts";
 import { markdownLanguage } from "./markdown/parser.ts";
-import { livePreview } from "./render/preview.ts";
+import {
+  livePreview,
+  type RevealScope,
+  revealScope,
+} from "./render/preview.ts";
 import { type Snippet, snippets } from "./snippets.ts";
 import { type Misspelling, spellCheck } from "./spell.ts";
 import { baseTheme, type Palette, paletteTheme } from "./theme.ts";
@@ -46,6 +50,11 @@ export interface Settings {
   /** Light, dark, or whichever the host is; see `Sigil.setHostTheme`. */
   theme: Palette | "system";
   lineNumbers: boolean;
+  /**
+   * How much raw source the cursor reveals: the whole of each line it is on, or only the
+   * constructs it touches. See docs/design.md for what counts as a construct.
+   */
+  reveal: RevealScope;
   /** Whether uncommitted changes are shown, once the host has supplied the texts to compare. */
   showChanges: boolean;
   snippets: readonly Snippet[];
@@ -54,6 +63,7 @@ export interface Settings {
 export const defaultSettings: Settings = {
   theme: "system",
   lineNumbers: true,
+  reveal: "line",
   showChanges: true,
   snippets: [],
 };
@@ -93,6 +103,7 @@ export class Sigil {
   private readonly now: () => Date;
   private readonly theme = new Compartment();
   private readonly numbers = new Compartment();
+  private readonly scope = new Compartment();
   private readonly changes = new Compartment();
   private readonly snippetList = new Compartment();
   private readonly recheck: ((view: EditorView) => void) | null = null;
@@ -119,6 +130,7 @@ export class Sigil {
       // Nothing in the editor animates, the cursor included.
       drawSelection({ cursorBlinkRate: 0 }),
       EditorView.contentAttributes.of({ spellcheck: "false" }),
+      this.scope.of(revealScope.of(this.current.reveal)),
       livePreview(),
       frontMatterFold(),
       editingKeys(),
@@ -198,6 +210,7 @@ export class Sigil {
       effects: [
         this.theme.reconfigure(paletteTheme(this.palette())),
         this.numbers.reconfigure(this.current.lineNumbers ? lineNumbers() : []),
+        this.scope.reconfigure(revealScope.of(this.current.reveal)),
         this.changes.reconfigure(this.changesExtension()),
         this.snippetList.reconfigure(this.snippetExtension()),
       ],

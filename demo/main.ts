@@ -34,6 +34,7 @@ function control<T extends HTMLElement>(id: string): T {
 const parent = control<HTMLElement>("editor");
 const sampleSelect = control<HTMLSelectElement>("sample");
 const themeGroup = control<HTMLFieldSetElement>("theme");
+const revealGroup = control<HTMLFieldSetElement>("reveal");
 const numbers = control<HTMLInputElement>("numbers");
 const changes = control<HTMLInputElement>("changes");
 const nonce = document.querySelector<HTMLScriptElement>("script[nonce]")?.nonce;
@@ -86,10 +87,16 @@ function paint() {
   else document.documentElement.dataset.theme = value;
 }
 
+function reveal(): Settings["reveal"] {
+  const chosen = revealGroup.querySelector<HTMLInputElement>("input:checked");
+  return (chosen?.value ?? "line") as Settings["reveal"];
+}
+
 function settings(): Settings {
   return {
     theme: theme(),
     lineNumbers: numbers.checked,
+    reveal: reveal(),
     showChanges: changes.checked,
     snippets: [
       { trigger: ";date", text: "{{date}}" },
@@ -126,6 +133,7 @@ themeGroup.addEventListener("change", () => {
   paint();
   editor.setSettings(settings());
 });
+revealGroup.addEventListener("change", () => editor.setSettings(settings()));
 numbers.addEventListener("change", () => editor.setSettings(settings()));
 changes.addEventListener("change", () => editor.setSettings(settings()));
 window.addEventListener("hashchange", () => load(location.hash.slice(1)));

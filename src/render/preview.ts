@@ -2,9 +2,11 @@ import { syntaxTree } from "@codemirror/language";
 import {
   type EditorState,
   type Extension,
+  Facet,
   type Range,
   StateEffect,
   StateField,
+  type Transaction,
 } from "@codemirror/state";
 import {
   Decoration,
@@ -22,13 +24,20 @@ import {
   type Piece,
   type Reveal,
   type Source,
+  type Span,
   type WidgetSpec,
 } from "./pieces.ts";
 
-interface Span {
-  from: number;
-  to: number;
-}
+/**
+ * How much raw source the cursor reveals: the whole of each source line the selection touches,
+ * or only the constructs the selection touches, such as one emphasised span or link.
+ */
+export type RevealScope = "line" | "construct";
+
+/** The reveal scope the editor uses, which is whole lines unless configured otherwise. */
+export const revealScope = Facet.define<RevealScope, RevealScope>({
+  combine: (values) => values[0] ?? "line",
+});
 
 const setPointer = StateEffect.define<boolean>();
 
@@ -45,7 +54,7 @@ const pointerDown = StateField.define<boolean>({
 /** Blocks that show their source as a whole when the cursor is anywhere in them. */
 const wholeBlocks = new Set(["Table", "FencedCode"]);
 
-function revealedSpans(state: EditorState): Span[] {
+function lineSpans(state: EditorState): Span[] {
   const spans: Span[] = [];
   const tree = syntaxTree(state);
   for (const range of state.selection.ranges) {
@@ -72,34 +81,80 @@ function revealedSpans(state: EditorState): Span[] {
   return spans;
 }
 
-function sameSpans(a: readonly Span[], b: readonly Span[]): boolean {
+/** What the selection reveals, and how what it reveals is decided. */
+interface Revealed {
+  scope: RevealScope;
+  /**
+   * In line scope, the lines the selection touches, widened to the whole of a table or fenced
+   * block. In construct scope, the selection's own ranges.
+   */
+  spans: readonly Span[];
+}
+
+function revealedIn(state: EditorState): Revealed {
+  const scope = state.facet(revealScope);
+  const spans =
+    scope === "line"
+      ? lineSpans(state)
+      : state.selection.ranges.map(({ from, to }) => ({ from, to }));
+  return { scope, spans };
+}
+
+/** What was revealed before an edit, carried through it. */
+function mapped(value: Revealed, tr: Transaction): Revealed {
+  const { doc } = tr.state;
+  const spans = value.spans.map((span) => {
+    const from = tr.changes.mapPos(span.from, 1);
+    const to = Math.max(from, tr.changes.mapPos(span.to, -1));
+    return value.scope === "line"
+      ? { from: doc.lineAt(from).from, to: doc.lineAt(to).to }
+      : { from, to };
+  });
+  return { scope: value.scope, spans };
+}
+
+function sameRevealed(a: Revealed, b: Revealed): boolean {
   return (
-    a.length === b.length &&
-    a.every((span, i) => span.from === b[i]?.from && span.to === b[i]?.to)
+    a.scope === b.scope &&
+    a.spans.length === b.spans.length &&
+    a.spans.every(
+      (span, i) => span.from === b.spans[i]?.from && span.to === b.spans[i]?.to,
+    )
   );
 }
 
 /**
- * The lines whose syntax is shown: those the selection touches, widened to the whole of a table
- * or fenced block. They stay as they are while a mouse button is down, because showing a line's
- * syntax moves its text, and text that moves under the pointer turns a click into a drag.
+ * What the selection reveals. It stays as it is while a mouse button is down, because showing
+ * syntax moves text, and text that moves under the pointer turns a click into a drag.
  */
-export const revealed = StateField.define<readonly Span[]>({
-  create: revealedSpans,
+export const revealed = StateField.define<Revealed>({
+  create: revealedIn,
   update(value, tr) {
-    let next: Span[];
-    if (tr.state.field(pointerDown)) {
+    let next: Revealed;
+    const rescoped =
+      tr.startState.facet(revealScope) !== tr.state.facet(revealScope);
+    if (tr.state.field(pointerDown) && !rescoped) {
       if (!tr.docChanged) return value;
-      next = value.map((span) => ({
-        from: tr.state.doc.lineAt(tr.changes.mapPos(span.from, 1)).from,
-        to: tr.state.doc.lineAt(tr.changes.mapPos(span.to, -1)).to,
-      }));
+      next = mapped(value, tr);
     } else {
-      next = revealedSpans(tr.state);
+      next = revealedIn(tr.state);
     }
-    return sameSpans(value, next) ? value : next;
+    return sameRevealed(value, next) ? value : next;
   },
 });
+
+/**
+ * Whether syntax is shown. In line scope, syntax is shown where it is on a revealed line. In
+ * construct scope, it is shown where the selection touches the construct it belongs to, ends
+ * included, so that a cursor just before or after a construct reveals it.
+ */
+export function revealIn({ scope, spans }: Revealed): Reveal {
+  const touches = (from: number, to: number) =>
+    spans.some((span) => span.from <= to && span.to >= from);
+  if (scope === "line") return touches;
+  return (from, to, construct) =>
+    construct ? touches(construct.from, construct.to) : touches(from, to);
+}
 
 function sameSpec(a: WidgetSpec, b: WidgetSpec): boolean {
   if (a.type !== b.type) return false;
@@ -171,9 +226,7 @@ function decoration(piece: Piece): Range<Decoration> {
 const redraw = StateEffect.define<null>();
 
 function build(view: EditorView): DecorationSet {
-  const spans = view.state.field(revealed);
-  const reveal: Reveal = (from, to) =>
-    spans.some((span) => span.from <= to && span.to >= from);
+  const reveal = revealIn(view.state.field(revealed));
   const src: Source = {
     doc: view.state.doc,
     tree: syntaxTree(view.state),
@@ -300,7 +353,10 @@ const pointer = EditorView.domEventHandlers({
   },
 });
 
-/** Renders Markdown in place, showing the syntax of the lines the selection touches. */
+/**
+ * Renders Markdown in place, showing the syntax of the lines or constructs the selection
+ * touches, as `revealScope` says.
+ */
 export function livePreview(): Extension {
   return [pointerDown, revealed, preview, pointer];
 }
