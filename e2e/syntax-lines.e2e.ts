@@ -14,6 +14,14 @@ function cursorLine(demo: DemoPage): Promise<number> {
   });
 }
 
+/** How far across the page the cursor is. */
+function cursorLeft(demo: DemoPage): Promise<number> {
+  return demo.page.evaluate(() => {
+    const { view } = window.sigil.editor;
+    return view.coordsAtPos(view.state.selection.main.head)?.left ?? Number.NaN;
+  });
+}
+
 /** The line numbers the gutter shows, without its spacer. */
 async function numbers(demo: DemoPage): Promise<string[]> {
   const shown = await demo.page
@@ -101,9 +109,56 @@ test("Down and Up move through a block a row at a time", async ({ demo }) => {
     await demo.page.keyboard.press("ArrowUp");
     up.push(await cursorLine(demo));
   }
-  // Coming up from below, the row above the blank line is the block's last line of code. The
-  // fence appears below the cursor, so nothing above it moves.
-  expect(up).toEqual([7, 5, 4, 3, 2, 1, 1]);
+  // Coming up from below, the cursor stops on the hidden closing fence, which shows it.
+  expect(up).toEqual([7, 6, 5, 4, 3, 2, 1]);
+});
+
+test("Up from below a block stops on its closing fence and shows it", async ({
+  demo,
+}) => {
+  await demo.open("basics");
+  await demo.setText(code, code.indexOf("\n\nend") + 1);
+  await expect(demo.page.locator(".sg-code-line")).toHaveCount(3);
+  const above = await top(demo, "let y;");
+  await demo.page.keyboard.press("ArrowUp");
+  expect(await cursorLine(demo)).toBe(6);
+  await expect(demo.page.locator(".sg-code-line")).toHaveCount(4);
+  await expect(demo.page.locator(".sg-code-line").last()).toHaveText("```");
+  expect(await top(demo, "let y;")).toBe(above);
+});
+
+test("Up and Down keep their column across a hidden fence", async ({
+  demo,
+}) => {
+  await demo.open("basics");
+  const text =
+    "intro text\n\n```\nplain text in the block\n```\n\nending text\n";
+  // The cursor starts well to the right of where it stops on the fence, which is its start or
+  // its end, so the test tells a kept column from one taken from the fence.
+  await demo.setText(text, text.indexOf("ending") + 9);
+  const below = await cursorLeft(demo);
+  for (let i = 0; i < 3; i++) await demo.page.keyboard.press("ArrowUp");
+  expect(await cursorLine(demo)).toBe(4);
+  expect(Math.abs((await cursorLeft(demo)) - below)).toBeLessThan(12);
+  await demo.setText(text, 8);
+  const above = await cursorLeft(demo);
+  for (let i = 0; i < 3; i++) await demo.page.keyboard.press("ArrowDown");
+  expect(await cursorLine(demo)).toBe(4);
+  expect(Math.abs((await cursorLeft(demo)) - above)).toBeLessThan(12);
+});
+
+test("Shift+Up from below a block extends the selection onto its closing fence", async ({
+  demo,
+}) => {
+  await demo.open("basics");
+  const at = code.indexOf("\n\nend") + 1;
+  await demo.setText(code, at);
+  await demo.page.keyboard.press("Shift+ArrowUp");
+  const selection = await demo.page.evaluate(() => {
+    const { main } = window.sigil.editor.view.state.selection;
+    return [main.anchor, main.head];
+  });
+  expect(selection).toEqual([at, at - 1]);
 });
 
 test("Down and Up move through a block whose fences are both hidden", async ({
@@ -116,18 +171,17 @@ test("Down and Up move through a block whose fences are both hidden", async ({
     await demo.page.keyboard.press("ArrowDown");
     down.push(await cursorLine(demo));
   }
-  // Each key goes to the row that was next to the cursor's, which skips the hidden fence on the
-  // way in. Once the cursor is in the block, both fences are shown and have rows of their own.
-  expect(down).toEqual([2, 4, 5, 6, 7, 8]);
+  // Going down, the cursor stops on the hidden opening fence, which shows the block's fences.
+  expect(down).toEqual([2, 3, 4, 5, 6, 7]);
   const up: number[] = [];
   for (let i = 0; i < 6; i++) {
     await demo.page.keyboard.press("ArrowUp");
     up.push(await cursorLine(demo));
   }
-  expect(up).toEqual([7, 6, 4, 3, 2, 1]);
+  expect(up).toEqual([6, 5, 4, 3, 2, 1]);
 });
 
-test("Down and Up move past a setext heading's underline", async ({ demo }) => {
+test("Down and Up stop on a setext heading's underline", async ({ demo }) => {
   await demo.open("basics");
   await demo.setText(heading, 0);
   const down: number[] = [];
@@ -141,7 +195,7 @@ test("Down and Up move past a setext heading's underline", async ({ demo }) => {
     await demo.page.keyboard.press("ArrowUp");
     up.push(await cursorLine(demo));
   }
-  expect(up).toEqual([5, 3, 2, 1, 1]);
+  expect(up).toEqual([5, 4, 3, 2, 1]);
 });
 
 test("Left from the line below a hidden fence moves onto the fence and shows it", async ({

@@ -1,11 +1,16 @@
 import { describe, expect, test } from "bun:test";
 import { moveLineUp } from "@codemirror/commands";
 import type { EditorState } from "@codemirror/state";
-import { Text } from "@codemirror/state";
+import { EditorSelection, Text } from "@codemirror/state";
 import { parseText } from "../markdown/parser.ts";
 import { marked, run, stateOf } from "../testing.ts";
-import { hiddenLines, keepLineShown, syntaxLinesIn } from "./hidden.ts";
-import { livePreview } from "./preview.ts";
+import {
+  hiddenLines,
+  keepLineShown,
+  stopOnHidden,
+  syntaxLinesIn,
+} from "./hidden.ts";
+import { livePreview, revealScope } from "./preview.ts";
 
 /** The text of each line of syntax in a document. */
 function syntaxLines(source: string): string[] {
@@ -144,5 +149,70 @@ describe("editing next to a hidden line", () => {
 
   test("is left alone where nothing is hidden", () => {
     expect(remove("a\n¦b", "backward")).toBe("a¦b");
+  });
+
+  test("moves onto a fence after its indentation, so that it shows in construct scope", () => {
+    const text = "- item¦\n  ```\n  code\n  ```\n\nend";
+    const state = stateOf(text, [livePreview(), revealScope.of("construct")]);
+    expect(hidden("", state)).toEqual([2, 4]);
+    const tr = state.update({
+      changes: { from: 6, to: 7 },
+      userEvent: "delete.forward",
+    });
+    expect(marked(tr.state)).toBe("- item\n  ¦```\n  code\n  ```\n\nend");
+    expect(hidden("", tr.state)).toEqual([]);
+  });
+});
+
+describe("moving up and down past a hidden line", () => {
+  const code = "intro\n\n```\nlet x;\n```\n\nend";
+
+  /**
+   * Where Up or Down stops in marked text, when CodeMirror's own move would go to `to`, with a
+   * goal column of 30.
+   */
+  function stop(
+    text: string,
+    to: number,
+    forward: boolean,
+    extend = false,
+  ): string | null {
+    const state = stateOf(text, livePreview());
+    const range = state.selection.main;
+    const moved = EditorSelection.cursor(to, 0, undefined, 30);
+    const stopped = stopOnHidden(state, range, moved, forward, extend);
+    if (!stopped) return null;
+    expect(stopped.goalColumn).toBe(30);
+    return marked(state.update({ selection: stopped }).state);
+  }
+
+  test("stops on the end of a closing fence coming up from below", () => {
+    const at = code.indexOf("let");
+    expect(stop(code.replace("\n\nend", "\n¦\nend"), at, false)).toBe(
+      "intro\n\n```\nlet x;\n```¦\n\nend",
+    );
+  });
+
+  test("stops on the start of an opening fence coming down from above", () => {
+    const at = code.indexOf("let");
+    expect(stop(code.replace("\n\n```", "\n¦\n```"), at, true)).toBe(
+      "intro\n\n¦```\nlet x;\n```\n\nend",
+    );
+  });
+
+  test("stops on a setext heading's underline coming up from below", () => {
+    expect(stop("Title\n=====\n¦end", 2, false)).toBe("Title\n=====¦\nend");
+  });
+
+  test("extends a selection onto the line", () => {
+    const at = code.indexOf("let");
+    expect(stop(code.replace("end", "end¦"), at, false, true)).toBe(
+      "intro\n\n```\nlet x;\n```«\n\nend»",
+    );
+  });
+
+  test("doesn't stop where the move passes no hidden line", () => {
+    expect(stop(`¦${code}`, 6, true)).toBeNull();
+    expect(stop(code.replace("let", "l¦et"), 3, false)).toBeNull();
   });
 });

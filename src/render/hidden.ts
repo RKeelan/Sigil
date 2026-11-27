@@ -1,15 +1,24 @@
 import { syntaxTree } from "@codemirror/language";
 import {
+  EditorSelection,
   EditorState,
   type Extension,
   Facet,
   type Line,
+  Prec,
+  type SelectionRange,
   StateField,
   type Text,
   type Transaction,
   type TransactionSpec,
 } from "@codemirror/state";
-import { Decoration, type DecorationSet, EditorView } from "@codemirror/view";
+import {
+  type Command,
+  Decoration,
+  type DecorationSet,
+  EditorView,
+  keymap,
+} from "@codemirror/view";
 import type { SyntaxNode, Tree } from "@lezer/common";
 import { frontMatterEnd } from "../markdown/parser.ts";
 import { revealed, type Span } from "./reveal.ts";
@@ -183,6 +192,79 @@ export function hiddenLines(state: EditorState): readonly SyntaxLine[] {
 }
 
 /**
+ * Where the cursor goes when it moves onto a hidden line: the end of the line's syntax when it
+ * comes from below, and the start when it comes from above. Both are in the line's construct, so
+ * the cursor there shows the line in either reveal scope.
+ */
+export function entryPoint(line: SyntaxLine, fromBelow: boolean): number {
+  return fromBelow
+    ? Math.min(line.to, line.block.to)
+    : Math.max(line.from, line.block.from);
+}
+
+/**
+ * Where a vertical move from `range` should stop instead of `moved`, where it would otherwise
+ * go: on the nearest hidden line it would pass, with the goal column it had, so that the next
+ * move goes on from the column it started at. Null if it passes no hidden line.
+ */
+export function stopOnHidden(
+  state: EditorState,
+  range: SelectionRange,
+  moved: SelectionRange,
+  forward: boolean,
+  extend: boolean,
+): SelectionRange | null {
+  const { doc } = state;
+  const start = doc.lineAt(range.head).number;
+  const end = doc.lineAt(moved.head).number;
+  const passed = hiddenLines(state).filter((line) => {
+    const number = doc.lineAt(line.from).number;
+    return forward
+      ? number > start && number < end
+      : number < start && number > end;
+  });
+  const line = forward ? passed[0] : passed[passed.length - 1];
+  if (!line) return null;
+  const at = entryPoint(line, !forward);
+  return extend
+    ? EditorSelection.range(range.anchor, at, moved.goalColumn)
+    : EditorSelection.cursor(at, 0, undefined, moved.goalColumn);
+}
+
+/**
+ * Up or Down, with `extend` set by Shift, stopping on a hidden line instead of passing it. The
+ * view has no row for a hidden line, so CodeMirror's own commands would go to the row past it;
+ * this one declines, leaving them to act, unless the move passes a hidden line.
+ */
+function verticalMove(forward: boolean, extend: boolean): Command {
+  return (view) => {
+    const { state } = view;
+    if (!hiddenLines(state).length) return false;
+    let stopped = false;
+    const ranges = state.selection.ranges.map((range) => {
+      if (!extend && !range.empty)
+        return EditorSelection.cursor(forward ? range.to : range.from);
+      const moved = view.moveVertically(range, forward);
+      const stop = stopOnHidden(state, range, moved, forward, extend);
+      if (stop) stopped = true;
+      if (extend)
+        return (
+          stop ??
+          EditorSelection.range(range.anchor, moved.head, moved.goalColumn)
+        );
+      return stop ?? moved;
+    });
+    if (!stopped) return false;
+    view.dispatch({
+      selection: EditorSelection.create(ranges, state.selection.mainIndex),
+      scrollIntoView: true,
+      userEvent: "select",
+    });
+    return true;
+  };
+}
+
+/**
  * Whether a line, from `from` to `to`, is still a line of its own with its text unchanged, and,
  * when lines are being moved, whether no line moves past it.
  */
@@ -204,7 +286,7 @@ function survives(tr: Transaction, from: number, to: number): boolean {
  * Keeps edits from changing a line the user can't see. An edit that would change a hidden line
  * of syntax, join it to another line, as Backspace at the start of the line below a closing
  * fence would, or move a line past it, isn't made: the cursor moves onto the hidden line
- * instead, which shows it, and the same key then acts in view.
+ * instead, where Up or Down would put it, which shows it, and the same key then acts in view.
  */
 const guard = EditorState.transactionFilter.of(
   (tr): Transaction | TransactionSpec => {
@@ -223,7 +305,7 @@ const guard = EditorState.transactionFilter.of(
     if (!line) return tr;
     const head = tr.startState.selection.main.head;
     return {
-      selection: { anchor: head > line.to ? line.to : line.from },
+      selection: { anchor: entryPoint(line, head > line.to) },
       scrollIntoView: true,
       userEvent: "select",
     };
@@ -233,8 +315,25 @@ const guard = EditorState.transactionFilter.of(
 /**
  * Leaves lines that hold nothing but syntax out of the view, so that they take up no room,
  * until the construct they belong to shows its source. A hidden line has no row, and so no
- * number in the gutter.
+ * number in the gutter. Up and Down stop on a hidden line rather than pass it.
  */
 export function syntaxLines(): Extension {
-  return [hidden, guard];
+  return [
+    hidden,
+    guard,
+    Prec.high(
+      keymap.of([
+        {
+          key: "ArrowUp",
+          run: verticalMove(false, false),
+          shift: verticalMove(false, true),
+        },
+        {
+          key: "ArrowDown",
+          run: verticalMove(true, false),
+          shift: verticalMove(true, true),
+        },
+      ]),
+    ),
+  ];
 }
