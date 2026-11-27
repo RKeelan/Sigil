@@ -93,13 +93,42 @@ function underline(node: SyntaxNode, doc: Text, out: SyntaxLine[]) {
     });
 }
 
+/**
+ * A fenced quote's `>>>` lines. Each is a construct of its own, as it is when the quote's syntax
+ * is revealed, so it comes back only when the cursor is on it: a quote can run for pages, and
+ * entering it shouldn't move lines that may be far from the cursor. The opening fence is hidden
+ * like a code fence that names no language, since it can't carry anything else, but is kept
+ * when the quote is empty, so that the quote takes up a row, and when the quote is never closed,
+ * so that the fence the user has just typed stays in view and shows why the rest of the document
+ * is quoted.
+ */
+function quoteFences(node: SyntaxNode, doc: Text, out: SyntaxLine[]) {
+  const open = node.firstChild;
+  const close = node.lastChild;
+  if (open?.name !== "QuoteFence" || close?.name !== "QuoteFence") return;
+  if (close === open) return;
+  const fence = (mark: SyntaxNode, line: Line) => {
+    if (bareBefore(line, mark.from) && bareAfter(line, mark.to))
+      out.push({
+        from: line.from,
+        to: line.to,
+        block: { from: mark.from, to: mark.to },
+      });
+  };
+  const first = doc.lineAt(open.from);
+  const last = doc.lineAt(close.from);
+  if (last.number > first.number + 1) fence(open, first);
+  fence(close, last);
+}
+
 /** Blocks that can't hold a fenced block or a setext heading. */
 const leaves =
   /^(Paragraph|ATXHeading\d|Table|CodeBlock|HTMLBlock|CommentBlock|ProcessingInstructionBlock|LinkReference|HorizontalRule)$/;
 
 /**
  * The lines in a document that hold nothing but syntax: the closing fence of a fenced block, its
- * opening fence when that names no language, and the underline of a setext heading.
+ * opening fence when that names no language, the underline of a setext heading, and the `>>>`
+ * lines of a fenced quote. They are in the order they appear in the document.
  */
 export function syntaxLinesIn(doc: Text, tree: Tree): SyntaxLine[] {
   const out: SyntaxLine[] = [];
@@ -108,6 +137,11 @@ export function syntaxLinesIn(doc: Text, tree: Tree): SyntaxLine[] {
     enter(node) {
       if (node.name === "Document") return;
       if (node.from < frontMatterTo) return false;
+      if (node.name === "FencedQuote") {
+        // A fenced quote holds blocks, which can have lines of syntax of their own.
+        quoteFences(node.node, doc, out);
+        return;
+      }
       if (node.name === "FencedCode") fenceLines(node.node, doc, out);
       else if (/^SetextHeading\d$/.test(node.name))
         underline(node.node, doc, out);
@@ -115,7 +149,8 @@ export function syntaxLinesIn(doc: Text, tree: Tree): SyntaxLine[] {
       return false;
     },
   });
-  return out;
+  // A fenced quote's closing fence is found before the lines inside the quote.
+  return out.sort((a, b) => a.from - b.from);
 }
 
 interface Hidden {

@@ -61,6 +61,25 @@ describe("lines of syntax", () => {
     expect(syntaxLines("~~~md\n```js\nx\n```\n~~~")).toEqual(["~~~"]);
   });
 
+  test("include a fenced quote's fences, in the order they appear", () => {
+    expect(syntaxLines(">>>\nquoted\n>>>")).toEqual([">>>", ">>>"]);
+    expect(syntaxLines(">>>\n```\nx\n```\n>>>")).toEqual([
+      ">>>",
+      "```",
+      "```",
+      ">>>",
+    ]);
+    expect(syntaxLines("- item\n\n  >>>\n  in\n  >>>")).toEqual([
+      "  >>>",
+      "  >>>",
+    ]);
+  });
+
+  test("leave an empty fenced quote's opening fence, and an unclosed quote's", () => {
+    expect(syntaxLines(">>>\n>>>")).toEqual([">>>"]);
+    expect(syntaxLines(">>>\nopen\n\nstill")).toEqual([]);
+  });
+
   test("leave out the front matter", () => {
     expect(syntaxLines("---\ntitle: x\n---\n\nbody")).toEqual([]);
   });
@@ -89,6 +108,23 @@ describe("hidden lines", () => {
     expect(
       hidden(code.replace("intro", "«intro").replace("end", "end»")),
     ).toEqual([]);
+  });
+
+  test("are a fenced quote's fences, each shown only while the cursor is on it", () => {
+    const quote = "intro\n\n>>>\nfirst\n\nlast\n>>>\n\nend";
+    expect(hidden(`¦${quote}`)).toEqual([3, 7]);
+    expect(hidden(quote.replace("first", "fi¦rst"))).toEqual([3, 7]);
+    expect(hidden(quote.replace(">>>\nfirst", ">>>¦\nfirst"))).toEqual([7]);
+    expect(hidden(quote.replace("last\n>>>", "last\n¦>>>"))).toEqual([3]);
+  });
+
+  test("show a fenced quote's fence in construct scope while the cursor is at its edge", () => {
+    const quote = "intro\n\n>>>\nquoted\n>>>\n\nend";
+    const state = stateOf(quote.replace("quoted\n>>>", "quoted\n>>>¦"), [
+      livePreview(),
+      revealScope.of("construct"),
+    ]);
+    expect(hidden("", state)).toEqual([3]);
   });
 
   test("are kept in view while something wants them shown", () => {
@@ -202,6 +238,17 @@ describe("moving up and down past a hidden line", () => {
 
   test("stops on a setext heading's underline coming up from below", () => {
     expect(stop("Title\n=====\n¦end", 2, false)).toBe("Title\n=====¦\nend");
+  });
+
+  test("stops on a fenced quote's fences", () => {
+    const quote = "intro\n>>>\nquoted\n>>>\nend";
+    const at = quote.indexOf("quoted");
+    expect(stop(quote.replace("end", "¦end"), at, false)).toBe(
+      "intro\n>>>\nquoted\n>>>¦\nend",
+    );
+    expect(stop(quote.replace("intro", "¦intro"), at, true)).toBe(
+      "intro\n¦>>>\nquoted\n>>>\nend",
+    );
   });
 
   test("extends a selection onto the line", () => {
