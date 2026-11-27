@@ -363,6 +363,11 @@ const styles = EditorView.theme({
   // Changes. Their backgrounds are drawn in the backgrounds layer.
   ".sg-deleted": { textDecoration: "line-through" },
   ".sg-deleted-staged, .sg-removed-staged": { color: "var(--sg-muted)" },
+  // Removed lines are a widget between CodeMirror's lines, where CodeMirror doesn't hide the
+  // browser's own selection, so a selection across them would be painted in the browser's blue.
+  ".sg-removed ::selection, .sg-removed::selection": {
+    backgroundColor: "transparent",
+  },
   ".sg-removed-row": { display: "flex" },
   ".sg-removed-row .sg-line": { flex: "1", minWidth: "0" },
   ".sg-removed-number": {
