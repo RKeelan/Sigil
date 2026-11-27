@@ -19,6 +19,7 @@ The component knows nothing about its host. Its first host is a VS Code extensio
 
 * Line numbers are on by default, in rendered Markdown as much as in source, with a setting that turns them off.
 * They number source lines. A wrapped line is numbered once, on its first row.
+* Each number is centred vertically on its line's first row, so that a heading's number is centred on the heading and an image's on the image. A wrapped line's number stays beside the text it starts with, rather than in the middle of the paragraph. The row's height is whatever the page lays out, so the gutter measures it from the drawn text, images and rules of the row, and moves the number to its middle.
 * Every source line keeps its number, which constrains rendering: a widget must not collapse several source lines into one numbered row. A table is drawn a row per source line, its delimiter row included, and front matter, if hidden, is hidden behind a fold that shows its range. CodeMirror's line-number gutter numbers one block per replaced range, so multi-line widgets need a gutter of the component's own. A line of syntax that is hidden (see Appearance) has no row, and its number is left out, so that the gap in the numbering shows where it is.
 * The numbers are right-aligned, in the document's font and size, with tabular figures. While the editor has focus, the cursor's line number is in the text's colour and the others are muted.
 * The gutter is at least three digits wide, widens when a line needs another digit, and never narrows when lines are deleted.

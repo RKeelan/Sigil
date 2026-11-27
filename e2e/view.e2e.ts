@@ -1,3 +1,4 @@
+import type { Page } from "@playwright/test";
 import { expect, test } from "./demo.ts";
 
 test("lines are numbered by source line, once per line", async ({ demo }) => {
@@ -68,26 +69,83 @@ test("the Reveal control switches between lines and constructs", async ({
   await expect(line).toHaveText("some **bold** and *more* here");
 });
 
-test("a heading's number sits on the heading's baseline", async ({ demo }) => {
+/**
+ * For each drawn line, where its number's middle is, measured from the top and middle of the
+ * line. `numbers` gives the number of each drawn line, which is its position unless lines are
+ * hidden.
+ */
+function numberPlaces(page: Page, numbers?: readonly number[]) {
+  return page.evaluate((numbers) => {
+    const marks = [...document.querySelectorAll(".sg-numbers .sg-number")];
+    return [...document.querySelectorAll(".cm-content > .cm-line")].map(
+      (line, i) => {
+        const row = line.getBoundingClientRect();
+        const n = String(numbers?.[i] ?? i + 1);
+        const number = marks
+          .find((mark) => mark.textContent === n)
+          ?.getBoundingClientRect();
+        const middle = number ? (number.top + number.bottom) / 2 : Number.NaN;
+        return {
+          fromTop: middle - row.top,
+          fromMiddle: middle - (row.top + row.bottom) / 2,
+        };
+      },
+    );
+  }, numbers);
+}
+
+test("each number is centred on its line, however tall", async ({ demo }) => {
   await demo.open("basics");
-  await demo.setText("text\n\n# Heading\n", 0);
-  const bottoms = await demo.page.evaluate(() => {
-    const bottom = (node: Node) => {
-      const range = document.createRange();
-      range.selectNodeContents(node);
-      return range.getBoundingClientRect().bottom;
-    };
-    const heading = document.querySelector(".sg-h1") as Element;
-    const number = [...document.querySelectorAll(".sg-number")].find(
-      (element) => element.textContent === "3",
-    ) as Element;
-    return {
-      heading: bottom(heading),
-      number: bottom(number.lastChild as Node),
-    };
-  });
-  // Text of different sizes on one baseline has bottoms a few pixels apart, not a row apart.
-  expect(Math.abs(bottoms.heading - bottoms.number)).toBeLessThan(12);
+  const image = (await demo.text()).match(/!\[[^\n]*\)/)?.[0] ?? "";
+  // The image is many rows tall. A setext heading's underline is hidden while the cursor is
+  // elsewhere, so it has no row and no number.
+  const lines = [
+    "text",
+    "# One",
+    "## Two",
+    "### Three",
+    "#### Four",
+    "##### Five",
+    "###### Six",
+    "Setext one",
+    "===",
+    "Setext two",
+    "---",
+    image,
+    "",
+    "***",
+  ];
+  const drawn = lines
+    .map((line, i) => ({ line, number: i + 1 }))
+    .filter(({ line }) => line !== "===" && line !== "---");
+  await demo.setText(`${lines.join("\n")}\n`, 0);
+  await expect(demo.page.locator(".sg-h")).toHaveCount(8);
+  await expect(demo.page.locator(".sg-image")).toBeVisible();
+  await expect
+    .poll(async () => {
+      const places = await numberPlaces(
+        demo.page,
+        drawn.map(({ number }) => number),
+      );
+      return drawn.map(({ line }, i) => ({
+        line,
+        centred: Math.abs(places[i]?.fromMiddle ?? Number.NaN) < 2,
+      }));
+    })
+    .toEqual(drawn.map(({ line }) => ({ line, centred: true })));
+});
+
+test("a wrapped line's number is centred on its first row", async ({
+  demo,
+}) => {
+  await demo.open("basics");
+  await demo.setText(`one\n\n${"wrapped ".repeat(200)}\n`, 0);
+  const [single, , wrapped] = await numberPlaces(demo.page);
+  // The line is several rows tall, so the middle of its first row is well above its own.
+  expect(wrapped?.fromMiddle).toBeLessThan(-20);
+  expect(
+    Math.abs((wrapped?.fromTop ?? 99) - (single?.fromTop ?? 0)),
+  ).toBeLessThan(1);
 });
 
 test("a table is drawn a row per source line", async ({ demo }) => {

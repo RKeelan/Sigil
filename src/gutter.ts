@@ -1,63 +1,27 @@
-import { syntaxTree } from "@codemirror/language";
-import {
-  type EditorState,
-  type Extension,
-  StateField,
-} from "@codemirror/state";
+import { type Extension, StateField } from "@codemirror/state";
 import {
   type EditorView,
   GutterMarker,
   gutter,
   highlightActiveLineGutter,
+  ViewPlugin,
 } from "@codemirror/view";
-import { frontMatterEnd } from "./markdown/parser.ts";
 
 class NumberMarker extends GutterMarker {
-  constructor(
-    readonly text: string,
-    readonly heading: number,
-  ) {
+  constructor(readonly text: string) {
     super();
   }
 
   override eq(other: NumberMarker) {
-    return this.text === other.text && this.heading === other.heading;
+    return this.text === other.text;
   }
 
   override toDOM(view: EditorView) {
     const dom = view.dom.ownerDocument.createElement("span");
-    // A heading's number carries a strut the size of the heading, so that the number sits on the
-    // heading's baseline and not at the top of its row.
-    dom.className = this.heading
-      ? `sg-number sg-number-h${this.heading}`
-      : "sg-number";
+    dom.className = "sg-number";
     dom.textContent = this.text;
     return dom;
   }
-}
-
-/** The level of the heading on the line from `from` to `to`, or zero. */
-function headingLevel(state: EditorState, from: number, to: number): number {
-  if (from < frontMatterEnd(state.doc)) return 0;
-  let level = 0;
-  syntaxTree(state).iterate({
-    from,
-    to,
-    enter(node) {
-      const heading = /^(ATX|Setext)Heading(\d)$/.exec(node.name);
-      if (heading) {
-        const mark = heading[1] === "Setext" ? node.node.lastChild : null;
-        const underline = mark ? state.doc.lineAt(mark.from).from : -1;
-        if (node.from <= to && node.to >= from && from !== underline)
-          level = Number(heading[2]);
-        return false;
-      }
-      return !/^(Paragraph|Table|FencedCode|CodeBlock|HTMLBlock)$/.test(
-        node.name,
-      );
-    },
-  });
-  return level;
 }
 
 /**
@@ -69,10 +33,105 @@ const digits = StateField.define<number>({
   update: (value, tr) => Math.max(value, String(tr.state.doc.lines).length),
 });
 
+interface Span {
+  top: number;
+  bottom: number;
+}
+
+const middle = (span: Span) => (span.top + span.bottom) / 2;
+
+/** Whether two boxes are on the same row: the middle of one lies within the other. */
+const sameRow = (a: Span, b: Span) =>
+  (middle(a) >= b.top && middle(a) <= b.bottom) ||
+  (middle(b) >= a.top && middle(b) <= a.bottom);
+
 /**
- * A gutter that numbers source lines. A wrapped line is numbered once, on its first row, and a
- * heading's number sits on the heading's baseline, which CodeMirror's own line-number gutter
- * has no way to arrange.
+ * The vertical extent of what is drawn on a line's first row: its text, images and rules. Text
+ * counts by the height of its font, not its leading, as the number's own text does. Returns
+ * null for a line with nothing drawn on it.
+ */
+export function firstRow(line: HTMLElement): Span | null {
+  const doc = line.ownerDocument;
+  const boxes: Span[] = [];
+  // 0x5 shows elements and text.
+  const walker = doc.createTreeWalker(line, 0x5);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (node.nodeType === 3) {
+      const range = doc.createRange();
+      range.selectNodeContents(node);
+      boxes.push(...(range.getClientRects?.() ?? []));
+    } else if ((node as Element).matches(".sg-image, .sg-rule")) {
+      boxes.push((node as Element).getBoundingClientRect());
+    }
+  }
+  const drawn = boxes.filter((box) => box.bottom > box.top);
+  const first = drawn[0];
+  if (!first) return null;
+  const row = drawn.filter((box) => sameRow(box, first));
+  return {
+    top: Math.min(...row.map((box) => box.top)),
+    bottom: Math.max(...row.map((box) => box.bottom)),
+  };
+}
+
+/**
+ * Moves each line's number to the middle of the line's first row. A heading or an image makes
+ * its row taller than the gutter's, and only the page knows by how much. A wrapped line keeps
+ * its number on its first row, beside the text it starts with.
+ */
+const centre = ViewPlugin.fromClass(
+  class {
+    constructor(readonly view: EditorView) {
+      this.schedule();
+    }
+
+    update() {
+      this.schedule();
+    }
+
+    schedule() {
+      this.view.requestMeasure({
+        key: this,
+        read: (view) => this.read(view),
+        write: (moves) => {
+          for (const [number, offset] of moves)
+            number.style.top = offset ? `${offset}px` : "";
+        },
+      });
+    }
+
+    read(view: EditorView): [HTMLElement, number][] {
+      const lines = new Map<number, HTMLElement>();
+      for (const line of view.contentDOM.querySelectorAll<HTMLElement>(
+        ":scope > .cm-line",
+      )) {
+        const at = view.posAtDOM(line, 0);
+        lines.set(view.state.doc.lineAt(at).number, line);
+      }
+      const moves: [HTMLElement, number][] = [];
+      for (const number of view.dom.querySelectorAll<HTMLElement>(
+        ".sg-numbers .sg-number",
+      )) {
+        const line = lines.get(Number(number.textContent));
+        const row = line && firstRow(line);
+        const current = Number.parseFloat(number.style.top) || 0;
+        let offset = 0;
+        if (row) {
+          // Where the number would be unmoved, less where it is now, gives how far to move it.
+          const box = number.getBoundingClientRect();
+          offset = Math.round((middle(row) - middle(box) + current) * 2) / 2;
+        }
+        if (offset !== current) moves.push([number, offset]);
+      }
+      return moves;
+    }
+  },
+);
+
+/**
+ * A gutter that numbers source lines. A wrapped line is numbered once, on its first row, which
+ * CodeMirror's own line-number gutter has no way to arrange, and each number is centred on that
+ * row, however tall the row is.
  */
 export function lineNumbers(): Extension {
   return [
@@ -80,21 +139,18 @@ export function lineNumbers(): Extension {
     gutter({
       class: "sg-numbers",
       lineMarker(view, line) {
-        const number = view.state.doc.lineAt(line.from).number;
         return new NumberMarker(
-          String(number),
-          headingLevel(view.state, line.from, line.to),
+          String(view.state.doc.lineAt(line.from).number),
         );
       },
-      lineMarkerChange: (update) =>
-        syntaxTree(update.startState) !== syntaxTree(update.state),
       initialSpacer: (view) =>
-        new NumberMarker("0".repeat(view.state.field(digits)), 0),
+        new NumberMarker("0".repeat(view.state.field(digits))),
       updateSpacer: (spacer, update) =>
         update.startState.field(digits) === update.state.field(digits)
           ? spacer
-          : new NumberMarker("0".repeat(update.state.field(digits)), 0),
+          : new NumberMarker("0".repeat(update.state.field(digits))),
     }),
     highlightActiveLineGutter(),
+    centre,
   ];
 }
