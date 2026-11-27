@@ -139,7 +139,7 @@ test("a fenced block shows its fences when the cursor is in it", async ({
 }) => {
   await demo.open("basics");
   await demo.setText("intro\n\n```js\nlet x;\n```\n\nend\n", 0);
-  await expect(demo.page.locator(".sg-code-line")).toHaveCount(3);
+  await expect(demo.page.locator(".sg-code-line")).toHaveCount(2);
   await expect(demo.page.locator(".sg-code-line").first()).toHaveText("js");
   await demo.cursorAfter("let");
   await expect(demo.page.locator(".sg-code-line").first()).toHaveText("```js");

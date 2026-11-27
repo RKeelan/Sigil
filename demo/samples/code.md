@@ -1,6 +1,6 @@
 # Code
 
-Inline `code` sits in the text. A fenced block keeps its fences as rows of their own:
+Inline `code` sits in the text. A fenced block shows the language its opening fence names, and its closing fence only while the cursor is in the block:
 
 ```ts
 export function greet(name: string): string {
@@ -8,7 +8,7 @@ export function greet(name: string): string {
 }
 ```
 
-A fence with no language:
+A fence with no language is hidden as well:
 
 ```
 plain text
