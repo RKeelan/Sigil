@@ -29,7 +29,7 @@ export class DemoPage {
       ([value, at]) => {
         const { editor } = window.sigil;
         editor.setText(value);
-        editor.setChanges({ index: value, head: value });
+        editor.setChanges({ index: value });
         editor.view.dispatch({ selection: { anchor: at } });
         editor.view.focus();
       },

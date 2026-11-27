@@ -61,10 +61,10 @@ test("a selection shows on a changed line", async ({ demo }) => {
   const base = "Text\n\nAfter\n";
   await demo.setText("Text\nnew\nmore\n\nAfter\n");
   await demo.page.evaluate(
-    (text) => window.sigil.editor.setChanges({ index: text, head: text }),
+    (text) => window.sigil.editor.setChanges({ index: text }),
     base,
   );
-  await expect(demo.page.locator(".sg-added-unstaged")).toHaveCount(2);
+  await expect(demo.page.locator(".sg-added")).toHaveCount(2);
   const colour = await selectedColour(demo, "new", "more");
   const selection = await cssColour(
     demo,

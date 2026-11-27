@@ -8,8 +8,6 @@ import {
   indexAfter,
   lineEdits,
   linesOf,
-  mapBoundary,
-  mapLine,
 } from "./model.ts";
 
 const lines = (text: string) => text.split("\n");
@@ -82,117 +80,62 @@ describe("lineEdits", () => {
   });
 });
 
-describe("mapping", () => {
-  const hunks = [
-    { fromA: 2, toA: 2, fromB: 2, toB: 4 },
-    { fromA: 5, toA: 7, fromB: 7, toB: 8 },
-  ];
-
-  test("a boundary before a change stays before it", () => {
-    expect(mapBoundary(hunks, 1)).toBe(1);
-    expect(mapBoundary(hunks, 2)).toBe(2);
-    expect(mapBoundary(hunks, 3)).toBe(5);
-    expect(mapBoundary(hunks, 6)).toBe(7);
-    expect(mapBoundary(hunks, 7)).toBe(8);
-    expect(mapBoundary(hunks, 9)).toBe(10);
-  });
-
-  test("a line moves by the lines put in and taken out before it", () => {
-    expect(mapLine(hunks, 1)).toBe(1);
-    expect(mapLine(hunks, 2)).toBe(4);
-    expect(mapLine(hunks, 4)).toBe(6);
-    expect(mapLine(hunks, 7)).toBe(8);
-  });
-});
-
 describe("buildBlocks", () => {
-  const head = lines("one\ntwo\nthree\nfour");
-  const index = lines("one\nTWO\nthree\nfour\nfive");
-  const doc = lines("zero\none\nTWO\nthree\nfive");
-
   const summary = (blocks: Block[]) =>
     blocks.map(
-      (block) =>
-        `${block.kind} at ${block.at} added ${block.added
-          .map((run) => `${run.from}-${run.to}`)
-          .join(",")} removed ${
-          block.removed ? `${block.removed.from}-${block.removed.to}` : "none"
+      ({ at, added, removed }) =>
+        `at ${at} added ${added ? `${added.from}-${added.to}` : "none"} removed ${
+          removed ? `${removed.from}-${removed.to}` : "none"
         }`,
     );
 
-  test("places staged changes in the document, through the unstaged ones", () => {
-    expect(summary(buildBlocks(head, index, doc))).toEqual([
-      "unstaged at 0 added 0-1 removed none",
-      "staged at 2 added 2-3 removed 1-2",
-      // Where a staged and an unstaged change meet, the staged one, which is the older, is first.
-      "staged at 4 added 4-5 removed none",
-      "unstaged at 4 added  removed 3-4",
+  test("finds the changes between the index and the document", () => {
+    const index = lines("one\nTWO\nthree\nfour\nfive");
+    const doc = lines("zero\none\nTWO\nthree\nfive");
+    expect(summary(buildBlocks(index, doc))).toEqual([
+      "at 0 added 0-1 removed none",
+      "at 4 added none removed 3-4",
     ]);
-  });
-
-  test("leaves out of a staged change the lines that have changed again", () => {
-    const blocks = buildBlocks(lines("a\nb"), lines("a\nB"), lines("a\nB!"));
-    expect(summary(blocks)).toEqual([
-      "staged at 1 added  removed 1-2",
-      "unstaged at 1 added 1-2 removed 1-2",
-    ]);
-    expect(blocks[0]?.edits).toBeNull();
   });
 
   test("shows a small change to a line as an edit to it", () => {
     const [block] = buildBlocks(
       lines("the quick brown fox jumps over the lazy dog"),
-      lines("the quick brown fox jumps over the lazy dog"),
       lines("the quiet brown fox jumps over the lazy dog"),
     );
     expect(block?.edits).toEqual([[{ fromA: 4, toA: 9, fromB: 4, toB: 9 }]]);
-    expect(blockKey(block as Block)).toBe("unstaged:0:1:0:1");
+    expect(blockKey(block as Block)).toBe("0:1:0:1");
   });
 });
 
 describe("indexAfter", () => {
   const texts = [
-    ["one\ntwo\nthree\n", "one\n2\nthree\n", "one\n2\nthree\nfour\n"],
-    ["a\nb\nc", "a\nc", "x\na\nc\nd"],
-    ["", "new\n", "new\nnewer\n"],
-    ["a\n\nb\n\nc\n", "a\n\nB\n\nc\n", "A\n\nB\n\nC"],
-    ["keep\ndrop\n", "keep\n", ""],
+    ["one\n2\nthree\n", "one\n2\nthree\nfour\n"],
+    ["a\nc", "x\na\nc\nd"],
+    ["new\n", "new\nnewer\n"],
+    ["a\n\nB\n\nc\n", "A\n\nB\n\nC"],
+    ["keep\n", ""],
   ] as const;
 
-  for (const [head, index, doc] of texts) {
-    const label = JSON.stringify([head, index, doc]);
-
-    test(`staging every change makes the index the document: ${label}`, () => {
+  for (const [index, doc] of texts) {
+    test(`staging every change makes the index the document: ${JSON.stringify([index, doc])}`, () => {
       let current = lines(index);
       for (let guard = 0; guard < 20; guard++) {
-        const block = buildBlocks(lines(head), current, lines(doc)).find(
-          (b) => b.kind === "unstaged",
-        );
+        const [block] = buildBlocks(current, lines(doc));
         if (!block) break;
-        current = indexAfter(block, lines(head), current, lines(doc));
+        current = indexAfter(block, current, lines(doc));
       }
       expect(current.join("\n")).toBe(doc);
-    });
-
-    test(`unstaging every change makes the index HEAD: ${label}`, () => {
-      let current = lines(index);
-      for (let guard = 0; guard < 20; guard++) {
-        const block = buildBlocks(lines(head), current, lines(doc)).find(
-          (b) => b.kind === "staged",
-        );
-        if (!block) break;
-        current = indexAfter(block, lines(head), current, lines(doc));
-      }
-      expect(current.join("\n")).toBe(head);
     });
   }
 
   test("staging one change leaves the others unstaged", () => {
-    const head = lines("a\n\nb\n\nc");
+    const index = lines("a\n\nb\n\nc");
     const doc = lines("A\n\nb\n\nC");
-    const [first] = buildBlocks(head, head, doc);
-    const index = indexAfter(first as Block, head, head, doc);
-    expect(index).toEqual(lines("A\n\nb\n\nc"));
+    const [first] = buildBlocks(index, doc);
+    const after = indexAfter(first as Block, index, doc);
+    expect(after).toEqual(lines("A\n\nb\n\nc"));
+    expect(buildBlocks(after, doc).length).toBe(1);
   });
 });
 

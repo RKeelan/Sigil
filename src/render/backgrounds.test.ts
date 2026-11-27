@@ -30,7 +30,7 @@ test("draws a rectangle for each row of each coloured element", () => {
 
 test("a change's colour wins over a code block's", () => {
   view = new EditorView({ doc: "text", parent: document.body });
-  element("sg-code-line sg-added-unstaged", [
+  element("sg-code-line sg-added", [
     { left: 0, top: 0, width: 100, height: 20 },
   ]);
   const [marker] = markers(view);

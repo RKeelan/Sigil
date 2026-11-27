@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { blockKey } from "./changes/model.ts";
 import { applyChange, shownChanges } from "./changes/view.ts";
 import { type Host, type Options, Sigil, type TextChange } from "./editor.ts";
 
@@ -124,40 +125,43 @@ describe("settings", () => {
 });
 
 describe("changes", () => {
-  const head = "one\ntwo\nthree\n";
   const index = "one\n2\nthree\n";
-  const text = "one\n2\nthree\nfour\n";
+  const text = "one\ntwo\nthree\nfour\n";
 
-  test("are shown once the host supplies texts to compare with", () => {
+  test("are shown once the host supplies the index to compare with", () => {
     const sigil = open(text);
     expect(shownChanges(sigil.view.state)).toEqual([]);
     expect(sigil.view.dom.querySelector(".sg-actions")).toBeNull();
-    sigil.setChanges({ index, head });
-    expect(shownChanges(sigil.view.state).map((block) => block.kind)).toEqual([
-      "staged",
-      "unstaged",
-    ]);
+    sigil.setChanges({ index });
+    expect(shownChanges(sigil.view.state).length).toBe(2);
     expect(sigil.view.dom.querySelector(".sg-actions")).not.toBeNull();
     sigil.setChanges(null);
     expect(shownChanges(sigil.view.state)).toEqual([]);
     expect(sigil.view.dom.querySelector(".sg-actions")).toBeNull();
   });
 
-  test("staging and unstaging hand the host the index's new text", () => {
+  test("staging hands the host the index's new text", () => {
     const indexes: string[] = [];
     const host: Host = { setIndex: (value) => indexes.push(value) };
     const sigil = open(text, { host });
-    sigil.setChanges({ index, head });
-    applyChange(sigil.view, "unstaged:3:3:3:4");
-    expect(indexes).toEqual([text]);
-    expect(shownChanges(sigil.view.state).map((block) => block.kind)).toEqual([
-      "staged",
-      "staged",
-    ]);
-    applyChange(sigil.view, "staged:1:2:1:2");
-    expect(indexes[1]).toBe("one\ntwo\nthree\nfour\n");
+    sigil.setChanges({ index });
+    applyChange(sigil.view, "3:3:3:4");
+    expect(indexes).toEqual(["one\n2\nthree\nfour\n"]);
+    // A staged change is in the index, so it is no longer shown.
+    expect(shownChanges(sigil.view.state).map(blockKey)).toEqual(["1:2:1:2"]);
+    applyChange(sigil.view, "1:2:1:2");
+    expect(indexes[1]).toBe(text);
+    expect(shownChanges(sigil.view.state)).toEqual([]);
     applyChange(sigil.view, "no such change");
     expect(indexes.length).toBe(2);
+  });
+
+  test("changes the host unstages reappear when it supplies the index again", () => {
+    const sigil = open(text);
+    sigil.setChanges({ index: text });
+    expect(shownChanges(sigil.view.state)).toEqual([]);
+    sigil.setChanges({ index });
+    expect(shownChanges(sigil.view.state).length).toBe(2);
   });
 
   test("the index is written with its own line endings", () => {
@@ -165,14 +169,14 @@ describe("changes", () => {
     const sigil = open("one\ntwo\n", {
       host: { setIndex: (value) => indexes.push(value) },
     });
-    sigil.setChanges({ index: "one\r\n", head: "one\r\n" });
-    applyChange(sigil.view, "unstaged:1:1:1:2");
+    sigil.setChanges({ index: "one\r\n" });
+    applyChange(sigil.view, "1:1:1:2");
     expect(indexes).toEqual(["one\r\ntwo\r\n"]);
   });
 
   test("are hidden when the setting is off", () => {
     const sigil = open(text, { settings: { showChanges: false } });
-    sigil.setChanges({ index, head });
+    sigil.setChanges({ index });
     expect(shownChanges(sigil.view.state)).toEqual([]);
     sigil.setSettings({ showChanges: true });
     expect(shownChanges(sigil.view.state).length).toBe(2);

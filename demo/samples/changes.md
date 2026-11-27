@@ -16,6 +16,6 @@ She had been away for four years, and the town had not changed.
 | Rope |     4 |
 | Nets |    12 |
 
-A paragraph added since the last commit, and not yet staged. Every change here has a button beside it: Stage for the ones still to be reviewed, and Unstage for the ones already staged.
+A paragraph added since the last commit, and not yet staged. Each change still to be reviewed has a Stage button beside it. A staged change looks like the rest of the text, as the four years and the candles do, and Unstage all puts the staged changes back.
 
 The last paragraph is the same in every version.

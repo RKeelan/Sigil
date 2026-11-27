@@ -24,7 +24,7 @@ const editor = new Sigil({
       return [];
     },
     addWord(word) {},
-    // The index's new text, when a change is staged or unstaged.
+    // The index's new text, when a change is staged.
     setIndex(text) {},
   },
   settings: {
@@ -36,11 +36,11 @@ const editor = new Sigil({
 });
 
 editor.setText(text); // the document changed outside the editor
-editor.setChanges({ index, head }); // the texts to show uncommitted changes against
+editor.setChanges({ index }); // the index text to show unstaged changes against
 editor.setHostTheme("dark"); // what the System theme follows
 ```
 
-Every member of `host` is optional, and a host that leaves one out goes without what it provides. `sigil/fonts.css` loads the fonts the editor is set in, Source Serif 4 and IBM Plex Mono; the editor's size is the font size of the element it is put in.
+Every member of `host` is optional, and a host that leaves one out goes without what it provides. The editor shows the changes between the index and the document, each with a Stage button. A staged change is in the index, so it looks like the rest of the text, as in VS Code's diff view; unstaging is left to the host, which calls `setChanges` with the new index afterwards. `sigil/fonts.css` loads the fonts the editor is set in, Source Serif 4 and IBM Plex Mono; the editor's size is the font size of the element it is put in.
 
 ## Demo page
 

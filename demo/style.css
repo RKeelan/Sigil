@@ -98,6 +98,21 @@ select {
   cursor: pointer;
 }
 
+.button {
+  font: inherit;
+  color: inherit;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--control-border);
+  border-radius: 6px;
+  background: var(--control-bg);
+  cursor: pointer;
+}
+
+.button:disabled {
+  color: var(--bar-muted);
+  cursor: default;
+}
+
 /* Radio buttons drawn as one control, with the chosen one filled. */
 .segmented {
   gap: 0;
@@ -197,6 +212,7 @@ select {
 }
 
 select:focus-visible,
+.button:focus-visible,
 .switch input:focus-visible,
 .segmented input:focus-visible + span {
   outline: 2px solid var(--accent);

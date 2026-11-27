@@ -37,9 +37,6 @@ const palettes: Record<Palette, Record<string, string>> = {
     "--sg-removed": "#ecd6d3",
     "--sg-removed-text": "#e4aba6",
     "--sg-removed-bar": "#cf4338",
-    "--sg-staged": "#d6dbe8",
-    "--sg-staged-text": "#b5c1e0",
-    "--sg-staged-bar": "#6f86c9",
     "--sg-tok-keyword": "#8b3a74",
     "--sg-tok-literal": "#9d4b15",
     "--sg-tok-string": "#3c6e27",
@@ -66,9 +63,6 @@ const palettes: Record<Palette, Record<string, string>> = {
     "--sg-removed": "#422422",
     "--sg-removed-text": "#72312d",
     "--sg-removed-bar": "#d9574b",
-    "--sg-staged": "#272f44",
-    "--sg-staged-text": "#3c4b77",
-    "--sg-staged-bar": "#7d93d6",
     "--sg-tok-keyword": "#d197c4",
     "--sg-tok-literal": "#e3a274",
     "--sg-tok-string": "#a5c98a",
@@ -128,15 +122,13 @@ const styles = EditorView.theme({
   },
 
   // The backgrounds of code blocks, code spans and changes, drawn in a layer below the selection
-  // (see render/backgrounds.ts). Unstaged additions and removals are green and red; staged ones
-  // share a quieter blue.
+  // (see render/backgrounds.ts). Additions are green and removals red. Only unstaged changes are
+  // shown; a staged change looks like the text around it.
   ".sg-bg-code": { backgroundColor: "var(--sg-code-bg)" },
   ".sg-bg-code-span": { borderRadius: "3px" },
   ".sg-bg-added": { backgroundColor: "var(--sg-added)" },
-  ".sg-bg-staged": { backgroundColor: "var(--sg-staged)" },
   ".sg-bg-removed": { backgroundColor: "var(--sg-removed)" },
   ".sg-bg-added-text": { backgroundColor: "var(--sg-added-text)" },
-  ".sg-bg-staged-text": { backgroundColor: "var(--sg-staged-text)" },
   ".sg-bg-removed-text": { backgroundColor: "var(--sg-removed-text)" },
 
   // The gutter.
@@ -362,7 +354,6 @@ const styles = EditorView.theme({
 
   // Changes. Their backgrounds are drawn in the backgrounds layer.
   ".sg-deleted": { textDecoration: "line-through" },
-  ".sg-deleted-staged, .sg-removed-staged": { color: "var(--sg-muted)" },
   // Removed lines are a widget between CodeMirror's lines, where CodeMirror doesn't hide the
   // browser's own selection, so a selection across them would be painted in the browser's blue.
   ".sg-removed ::selection, .sg-removed::selection": {
@@ -381,23 +372,18 @@ const styles = EditorView.theme({
     userSelect: "none",
   },
   ".sg-removed-number::before": { content: '"−"' },
-  ".sg-numbers .sg-gutter-unstaged, .sg-numbers .sg-gutter-staged, .sg-numbers .sg-gutter-removed-unstaged, .sg-numbers .sg-gutter-removed-staged":
-    {
-      backgroundSize: "3px 100%",
-      backgroundPosition: "right top",
-      backgroundRepeat: "no-repeat",
-    },
-  ".sg-numbers .sg-gutter-unstaged": {
+  ".sg-numbers .sg-gutter-added, .sg-numbers .sg-gutter-removed": {
+    backgroundSize: "3px 100%",
+    backgroundPosition: "right top",
+    backgroundRepeat: "no-repeat",
+  },
+  ".sg-numbers .sg-gutter-added": {
     backgroundImage:
       "linear-gradient(var(--sg-added-bar), var(--sg-added-bar))",
   },
-  ".sg-numbers .sg-gutter-removed-unstaged": {
+  ".sg-numbers .sg-gutter-removed": {
     backgroundImage:
       "linear-gradient(var(--sg-removed-bar), var(--sg-removed-bar))",
-  },
-  ".sg-numbers .sg-gutter-staged, .sg-numbers .sg-gutter-removed-staged": {
-    backgroundImage:
-      "linear-gradient(var(--sg-staged-bar), var(--sg-staged-bar))",
   },
   ".cm-gutters.cm-gutters-after": { backgroundColor: "var(--sg-bg)" },
   ".sg-actions .cm-gutterElement": { padding: "0 0.6em 0 0.3em" },

@@ -117,38 +117,15 @@ export function lineEdits(
   return edits;
 }
 
-/** Where a line boundary of A falls in B: the line of B that the boundary comes before. */
-export function mapBoundary(hunks: readonly Hunk[], line: number): number {
-  let offset = 0;
-  for (const hunk of hunks) {
-    if (line <= hunk.fromA) break;
-    if (line < hunk.toA) return hunk.fromB;
-    offset = hunk.toB - hunk.toA;
-  }
-  return line + offset;
-}
-
-/** Where a line of A is in B, for a line that no hunk covers. */
-export function mapLine(hunks: readonly Hunk[], line: number): number {
-  let offset = 0;
-  for (const hunk of hunks) {
-    if (line < hunk.fromA) break;
-    offset = hunk.toB - hunk.toA;
-  }
-  return line + offset;
-}
-
-/** A change as the view shows it. */
+/**
+ * A change as the view shows it: a difference between the index and the document. A staged
+ * change is in the index already, so it is not one.
+ */
 export interface Block {
-  /** Unstaged changes are between the index and the document; staged, between HEAD and the index. */
-  kind: "unstaged" | "staged";
   hunk: Hunk;
-  /**
-   * The document lines the change put in, as runs. A staged change's lines that have changed
-   * again since are left out, since they show as unstaged.
-   */
-  added: { from: number; to: number }[];
-  /** The lines the change took out, in its base text, or null. */
+  /** The document lines the change put in, or null. */
+  added: { from: number; to: number } | null;
+  /** The index lines the change took out, or null. */
   removed: { from: number; to: number } | null;
   /** The document line the removed lines are shown above. */
   at: number;
@@ -158,83 +135,33 @@ export interface Block {
 
 export function blockKey(block: Block): string {
   const { hunk } = block;
-  return `${block.kind}:${hunk.fromA}:${hunk.toA}:${hunk.fromB}:${hunk.toB}`;
+  return `${hunk.fromA}:${hunk.toA}:${hunk.fromB}:${hunk.toB}`;
 }
 
-/**
- * Works out the changes to show in a document, given the texts of HEAD and the index. A staged
- * change is placed by carrying its lines from the index through the unstaged changes.
- */
+/** Works out the changes to show in a document, given the text of the index. */
 export function buildBlocks(
-  head: readonly string[],
   index: readonly string[],
   doc: readonly string[],
-  staged: readonly Hunk[] = diffLines(head, index),
-  unstaged: readonly Hunk[] = diffLines(index, doc),
 ): Block[] {
-  const blocks: Block[] = [];
-  for (const hunk of staged) {
-    const added: { from: number; to: number }[] = [];
-    let clean = true;
-    for (let line = hunk.fromB; line < hunk.toB; line++) {
-      const covered = unstaged.some((u) => u.fromA <= line && line < u.toA);
-      if (covered) {
-        clean = false;
-        continue;
-      }
-      const at = mapLine(unstaged, line);
-      const last = added[added.length - 1];
-      if (last && last.to === at) last.to = at + 1;
-      else added.push({ from: at, to: at + 1 });
-    }
-    blocks.push({
-      kind: "staged",
-      hunk,
-      added,
-      removed:
-        hunk.toA > hunk.fromA ? { from: hunk.fromA, to: hunk.toA } : null,
-      at: mapBoundary(unstaged, hunk.fromB),
-      edits: clean ? lineEdits(head, index, hunk) : null,
-    });
-  }
-  for (const hunk of unstaged) {
-    blocks.push({
-      kind: "unstaged",
-      hunk,
-      added: hunk.toB > hunk.fromB ? [{ from: hunk.fromB, to: hunk.toB }] : [],
-      removed:
-        hunk.toA > hunk.fromA ? { from: hunk.fromA, to: hunk.toA } : null,
-      at: hunk.fromB,
-      edits: lineEdits(index, doc, hunk),
-    });
-  }
-  return blocks.sort(
-    (x, y) =>
-      x.at - y.at || (x.kind === y.kind ? 0 : x.kind === "staged" ? -1 : 1),
-  );
+  return diffLines(index, doc).map((hunk) => ({
+    hunk,
+    added: hunk.toB > hunk.fromB ? { from: hunk.fromB, to: hunk.toB } : null,
+    removed: hunk.toA > hunk.fromA ? { from: hunk.fromA, to: hunk.toA } : null,
+    at: hunk.fromB,
+    edits: lineEdits(index, doc, hunk),
+  }));
 }
 
-function splice(
-  lines: readonly string[],
-  from: number,
-  to: number,
-  insert: readonly string[],
-): string[] {
-  return [...lines.slice(0, from), ...insert, ...lines.slice(to)];
-}
-
-/**
- * The index's lines after staging or unstaging one change: staging puts the document's version
- * of the change into the index, and unstaging puts HEAD's version back.
- */
+/** The index's lines after staging one change, which puts the document's version of it there. */
 export function indexAfter(
   block: Block,
-  head: readonly string[],
   index: readonly string[],
   doc: readonly string[],
 ): string[] {
   const { hunk } = block;
-  return block.kind === "unstaged"
-    ? splice(index, hunk.fromA, hunk.toA, doc.slice(hunk.fromB, hunk.toB))
-    : splice(index, hunk.fromB, hunk.toB, head.slice(hunk.fromA, hunk.toA));
+  return [
+    ...index.slice(0, hunk.fromA),
+    ...doc.slice(hunk.fromB, hunk.toB),
+    ...index.slice(hunk.toA),
+  ];
 }

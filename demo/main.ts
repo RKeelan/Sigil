@@ -37,6 +37,7 @@ const themeGroup = control<HTMLFieldSetElement>("theme");
 const revealGroup = control<HTMLFieldSetElement>("reveal");
 const numbers = control<HTMLInputElement>("numbers");
 const changes = control<HTMLInputElement>("changes");
+const unstage = control<HTMLButtonElement>("unstage");
 const nonce = document.querySelector<HTMLScriptElement>("script[nonce]")?.nonce;
 
 for (const sample of samples) {
@@ -72,8 +73,20 @@ const host: Host = {
   },
   setIndex(text) {
     index = text;
+    unstage.disabled = index === head;
   },
 };
+
+/**
+ * Puts HEAD's text back in the index, as Unstage All Changes in VS Code's Source Control view
+ * does. Staged changes look like the rest of the text in the editor, so unstaging is the host's
+ * to offer.
+ */
+function unstageAll() {
+  index = head;
+  unstage.disabled = true;
+  editor.setChanges({ index });
+}
 
 function theme(): Settings["theme"] {
   const chosen = themeGroup.querySelector<HTMLInputElement>("input:checked");
@@ -121,7 +134,8 @@ function load(name: string) {
     settings: settings(),
     nonce,
   });
-  editor.setChanges({ index, head });
+  editor.setChanges({ index });
+  unstage.disabled = index === head;
   sampleSelect.value = sample.name;
   if (location.hash.slice(1) !== sample.name)
     history.replaceState(null, "", `#${sample.name}`);
@@ -136,6 +150,7 @@ themeGroup.addEventListener("change", () => {
 revealGroup.addEventListener("change", () => editor.setSettings(settings()));
 numbers.addEventListener("change", () => editor.setSettings(settings()));
 changes.addEventListener("change", () => editor.setSettings(settings()));
+unstage.addEventListener("click", unstageAll);
 window.addEventListener("hashchange", () => load(location.hash.slice(1)));
 
 load(location.hash.slice(1));

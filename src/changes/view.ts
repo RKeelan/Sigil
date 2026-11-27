@@ -28,22 +28,19 @@ import {
   type Block,
   blockKey,
   buildBlocks,
-  diffLines,
-  type Hunk,
   indexAfter,
   linesOf,
 } from "./model.ts";
 
-/** The texts a document is compared with, and the line ending the index is written with. */
+/** The text a document is compared with, and the line ending the index is written with. */
 export interface Bases {
-  head: Text;
   index: Text;
   indexEol: string;
 }
 
 export const setBases = StateEffect.define<Bases | null>();
 
-/** The base texts. They are kept while changes aren't shown, ready for when they are. */
+/** The base text. It is kept while changes aren't shown, ready for when they are. */
 export const bases = StateField.define<Bases | null>({
   create: () => null,
   update(value, tr) {
@@ -53,26 +50,21 @@ export const bases = StateField.define<Bases | null>({
   },
 });
 
-/** Called with the index's new text when a change is staged or unstaged. */
+/** Called with the index's new text when a change is staged. */
 const onIndex = Facet.define<(text: string) => void>();
 
-type Kind = Block["kind"];
-
 class RemovedText extends WidgetType {
-  constructor(
-    readonly text: string,
-    readonly kind: Kind,
-  ) {
+  constructor(readonly text: string) {
     super();
   }
 
   override eq(other: RemovedText) {
-    return this.text === other.text && this.kind === other.kind;
+    return this.text === other.text;
   }
 
   override toDOM(view: EditorView) {
     const dom = view.dom.ownerDocument.createElement("del");
-    dom.className = `sg-deleted sg-deleted-${this.kind}`;
+    dom.className = "sg-deleted";
     dom.textContent = this.text;
     return dom;
   }
@@ -80,11 +72,10 @@ class RemovedText extends WidgetType {
 
 /**
  * Lines a change took out, drawn where they were and rendered as the text around them is. They
- * have no line numbers in the document, so each row carries its number in the base text.
+ * have no line numbers in the document, so each row carries its number in the index.
  */
 class RemovedLines extends WidgetType {
   constructor(
-    readonly kind: Kind,
     readonly base: Text,
     readonly from: number,
     readonly to: number,
@@ -105,7 +96,7 @@ class RemovedLines extends WidgetType {
   override toDOM(view: EditorView) {
     const doc = view.dom.ownerDocument;
     const dom = doc.createElement("div");
-    dom.className = `sg-removed sg-removed-${this.kind}`;
+    dom.className = "sg-removed";
     const draw = () => {
       const src = {
         doc: this.base,
@@ -155,23 +146,13 @@ class ChangeClass extends GutterMarker {
   }
 }
 
-const gutterClass: Record<Kind, ChangeClass> = {
-  unstaged: new ChangeClass("sg-gutter-unstaged"),
-  staged: new ChangeClass("sg-gutter-staged"),
-};
+const addedGutterClass = new ChangeClass("sg-gutter-added");
+const removedGutterClass = new ChangeClass("sg-gutter-removed");
 
-const removedGutterClass: Record<Kind, ChangeClass> = {
-  unstaged: new ChangeClass("sg-gutter-removed-unstaged"),
-  staged: new ChangeClass("sg-gutter-removed-staged"),
-};
-
-const labels: Record<Kind, string> = { unstaged: "Stage", staged: "Unstage" };
+const label = "Stage";
 
 class ActionMarker extends GutterMarker {
-  constructor(
-    readonly kind: Kind,
-    readonly key: string,
-  ) {
+  constructor(readonly key: string) {
     super();
   }
 
@@ -182,8 +163,8 @@ class ActionMarker extends GutterMarker {
   override toDOM(view: EditorView) {
     const dom = view.dom.ownerDocument.createElement("button");
     dom.type = "button";
-    dom.className = `sg-action sg-action-${this.kind}`;
-    dom.textContent = labels[this.kind];
+    dom.className = "sg-action";
+    dom.textContent = label;
     dom.addEventListener("mousedown", (event) => {
       event.preventDefault();
       act(view, this.key);
@@ -192,12 +173,12 @@ class ActionMarker extends GutterMarker {
   }
 }
 
-/** Holds the buttons' column at the width of its wider label, so that text never re-wraps. */
+/** Holds the buttons' column at a button's width, so that text never re-wraps as buttons come and go. */
 class ActionSpacer extends GutterMarker {
   override toDOM(view: EditorView) {
     const dom = view.dom.ownerDocument.createElement("span");
     dom.className = "sg-action-spacer";
-    dom.textContent = labels.staged;
+    dom.textContent = label;
     return dom;
   }
 }
@@ -208,8 +189,6 @@ interface Model {
   classes: RangeSet<GutterMarker>;
   actions: RangeSet<GutterMarker>;
 }
-
-const stagedHunks = new WeakMap<Bases, Hunk[]>();
 
 /** Whether any of the document's lines from `from` up to `to`, counted from zero, are in a table. */
 function touchesTable(state: EditorState, from: number, to: number): boolean {
@@ -229,95 +208,76 @@ function build(state: EditorState): Model | null {
   const base = state.field(bases);
   if (!base) return null;
   const { doc } = state;
-  const head = linesOf(base.head);
   const index = linesOf(base.index);
-  let staged = stagedHunks.get(base);
-  if (!staged) {
-    staged = diffLines(head, index);
-    stagedHunks.set(base, staged);
-  }
-  const blocks = buildBlocks(head, index, linesOf(doc), staged);
+  const blocks = buildBlocks(index, linesOf(doc));
   const decorations: Range<Decoration>[] = [];
   const classes: Range<GutterMarker>[] = [];
   const actions: Range<GutterMarker>[] = [];
   for (const block of blocks) {
-    const { kind } = block;
     const key = blockKey(block);
-    const before = kind === "unstaged" ? index : head;
-    const first = block.added[0];
+    const { added } = block;
     // A table's rows are drawn as a whole, so an edit inside one would be hidden. The row as it
     // was is shown above the row as it is instead.
     const inline =
       block.edits !== null &&
-      first !== undefined &&
-      !touchesTable(state, first.from, first.from + block.edits.length);
-    if (block.edits && first && inline) {
+      added !== null &&
+      !touchesTable(state, added.from, added.from + block.edits.length);
+    if (block.edits && added && inline) {
       block.edits.forEach((spans, i) => {
-        const line = doc.line(first.from + i + 1);
-        const old = before[block.hunk.fromA + i] as string;
+        const line = doc.line(added.from + i + 1);
+        const old = index[block.hunk.fromA + i] as string;
         decorations.push(
-          Decoration.line({ class: `sg-edited sg-edited-${kind}` }).range(
-            line.from,
-          ),
+          Decoration.line({ class: "sg-edited" }).range(line.from),
         );
-        classes.push(gutterClass[kind].range(line.from));
+        classes.push(addedGutterClass.range(line.from));
         for (const span of spans) {
           if (span.toA > span.fromA)
             decorations.push(
               Decoration.widget({
-                widget: new RemovedText(old.slice(span.fromA, span.toA), kind),
+                widget: new RemovedText(old.slice(span.fromA, span.toA)),
                 side: -1,
               }).range(line.from + span.fromB),
             );
           if (span.toB > span.fromB)
             decorations.push(
-              Decoration.mark({
-                class: `sg-inserted sg-inserted-${kind}`,
-              }).range(line.from + span.fromB, line.from + span.toB),
+              Decoration.mark({ class: "sg-inserted" }).range(
+                line.from + span.fromB,
+                line.from + span.toB,
+              ),
             );
         }
       });
-      actions.push(
-        new ActionMarker(kind, key).range(doc.line(first.from + 1).from),
-      );
+      actions.push(new ActionMarker(key).range(doc.line(added.from + 1).from));
       continue;
     }
-    let anchored = false;
     if (block.removed) {
       const widget = new RemovedLines(
-        kind,
-        kind === "unstaged" ? base.index : base.head,
+        base.index,
         block.removed.from,
         block.removed.to,
         key,
       );
-      // Lines removed from the end of the document go below its last line. Where staged and
-      // unstaged removals meet, the staged lines, which are the older, come first.
+      // Lines removed from the end of the document go below its last line.
       const below = block.at >= doc.lines;
-      const order = kind === "staged" ? 1 : 2;
       decorations.push(
-        Decoration.widget({
-          widget,
-          block: true,
-          side: below ? order : order - 3,
-        }).range(below ? doc.length : doc.line(block.at + 1).from),
+        Decoration.widget({ widget, block: true, side: below ? 1 : -1 }).range(
+          below ? doc.length : doc.line(block.at + 1).from,
+        ),
       );
-      anchored = true;
     }
-    for (const run of block.added) {
-      for (let n = run.from; n < run.to; n++) {
+    if (added) {
+      for (let n = added.from; n < added.to; n++) {
         const line = doc.line(n + 1);
         decorations.push(
-          Decoration.line({ class: `sg-added sg-added-${kind}` }).range(
-            line.from,
-          ),
+          Decoration.line({ class: "sg-added" }).range(line.from),
         );
-        classes.push(gutterClass[kind].range(line.from));
-        if (!anchored) {
-          actions.push(new ActionMarker(kind, key).range(line.from));
-          anchored = true;
-        }
+        classes.push(addedGutterClass.range(line.from));
       }
+      // The removed lines' widget carries the button when there is one.
+      if (!block.removed)
+        actions.push(
+          new ActionMarker(key).range(doc.line(added.from + 1).from),
+        );
     }
   }
   return {
@@ -350,26 +310,21 @@ export function shownChanges(state: EditorState): readonly Block[] {
 }
 
 /**
- * Stages or unstages a change. What the index should hold is worked out as text, the index with
- * that one change applied or taken back, and handed over; nothing here knows about Git.
+ * Stages a change. What the index should hold is worked out as text, the index with that one
+ * change applied, and handed over; nothing here knows about Git.
  */
 function act(view: EditorView, key: string) {
   const { state } = view;
   const base = state.field(bases);
   const block = shownChanges(state).find((b) => blockKey(b) === key);
   if (!base || !block) return;
-  const lines = indexAfter(
-    block,
-    linesOf(base.head),
-    linesOf(base.index),
-    linesOf(state.doc),
-  );
+  const lines = indexAfter(block, linesOf(base.index), linesOf(state.doc));
   view.dispatch({ effects: setBases.of({ ...base, index: Text.of(lines) }) });
   const text = lines.join(base.indexEol);
   for (const notify of state.facet(onIndex)) notify(text);
 }
 
-/** Stages or unstages the change with the given key, as its button would. */
+/** Stages the change with the given key, as its button would. */
 export function applyChange(view: EditorView, key: string) {
   act(view, key);
 }
@@ -380,7 +335,8 @@ function touchesFrontMatter(state: EditorState): boolean {
   if (!end) return false;
   const lines = state.doc.lineAt(end).number;
   return shownChanges(state).some(
-    (block) => block.at < lines || block.added.some((run) => run.from < lines),
+    (block) =>
+      block.at < lines || (block.added !== null && block.added.from < lines),
   );
 }
 
@@ -392,16 +348,16 @@ function touchesFrontMatter(state: EditorState): boolean {
 function touchesLine(state: EditorState, number: number): boolean {
   const line = number - 1;
   return shownChanges(state).some(
-    (block) =>
-      block.added.some((run) => run.from <= line && line < run.to) ||
-      (block.removed !== null && (block.at === line || block.at === line + 1)),
+    ({ added, removed, at }) =>
+      (added !== null && added.from <= line && line < added.to) ||
+      (removed !== null && (at === line || at === line + 1)),
   );
 }
 
 /**
- * Shows the document's uncommitted changes in place: unstaged changes, which are between the
- * index and the document, and staged ones, which are between HEAD and the index, each with a
- * button that stages or unstages it.
+ * Shows the document's unstaged changes in place, the differences between the index and the
+ * document, each with a button that stages it. A staged change is in the index, so it is shown
+ * as plain text, as VS Code's diff view against the index shows it.
  */
 export function changesView(setIndex: (text: string) => void): Extension {
   return [
@@ -410,16 +366,14 @@ export function changesView(setIndex: (text: string) => void): Extension {
     keepFrontMatterOpen.of(touchesFrontMatter),
     keepLineShown.of(touchesLine),
     gutterWidgetClass.of((_view, widget) =>
-      widget instanceof RemovedLines ? removedGutterClass[widget.kind] : null,
+      widget instanceof RemovedLines ? removedGutterClass : null,
     ),
     gutter({
       class: "sg-actions",
       side: "after",
       markers: (view) => view.state.field(model)?.actions ?? RangeSet.empty,
       widgetMarker: (_view, widget) =>
-        widget instanceof RemovedLines
-          ? new ActionMarker(widget.kind, widget.key)
-          : null,
+        widget instanceof RemovedLines ? new ActionMarker(widget.key) : null,
       initialSpacer: () => new ActionSpacer(),
     }),
   ];
