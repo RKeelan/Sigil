@@ -59,6 +59,29 @@ export class DemoPage {
     return this.page.locator(".cm-line", { hasText: text }).first();
   }
 
+  /**
+   * The colour painted at a point of the page, as `rgb(r, g, b)`. The pixel is decoded in a blank
+   * page of its own, so that the demo page's content security policy doesn't apply to it.
+   */
+  async colourAt(x: number, y: number): Promise<string> {
+    const png = await this.page.screenshot({
+      clip: { x: Math.round(x), y: Math.round(y), width: 1, height: 1 },
+    });
+    const blank = await this.page.context().newPage();
+    try {
+      return await blank.evaluate(async (data) => {
+        const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
+        const bitmap = await createImageBitmap(new Blob([bytes]));
+        const context = new OffscreenCanvas(1, 1).getContext("2d");
+        context?.drawImage(bitmap, 0, 0);
+        const [r, g, b] = context?.getImageData(0, 0, 1, 1).data ?? [];
+        return `rgb(${r}, ${g}, ${b})`;
+      }, png.toString("base64"));
+    } finally {
+      await blank.close();
+    }
+  }
+
   /** Fails if the page logged an error or broke its content security policy. */
   async expectClean() {
     expect(await this.page.evaluate(() => window.sigil.violations)).toEqual([]);

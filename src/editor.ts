@@ -12,6 +12,7 @@ import { frontMatterFold, initialCursor } from "./frontmatter.ts";
 import { lineNumbers } from "./gutter.ts";
 import { editingKeys } from "./keys/keymap.ts";
 import { markdownLanguage } from "./markdown/parser.ts";
+import { backgrounds } from "./render/backgrounds.ts";
 import {
   livePreview,
   type RevealScope,
@@ -129,6 +130,7 @@ export class Sigil {
       EditorView.lineWrapping,
       // Nothing in the editor animates, the cursor included.
       drawSelection({ cursorBlinkRate: 0 }),
+      backgrounds(),
       EditorView.contentAttributes.of({ spellcheck: "false" }),
       this.scope.of(revealScope.of(this.current.reveal)),
       livePreview(),

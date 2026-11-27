@@ -134,6 +134,18 @@ const styles = EditorView.theme({
     backgroundColor: "var(--sg-selection)",
   },
 
+  // The backgrounds of code blocks, code spans and changes, drawn in a layer below the selection
+  // (see render/backgrounds.ts). Unstaged additions and removals are green and red; staged ones
+  // share a quieter blue.
+  ".sg-bg-code": { backgroundColor: "var(--sg-code-bg)" },
+  ".sg-bg-code-span": { borderRadius: "3px" },
+  ".sg-bg-added": { backgroundColor: "var(--sg-added)" },
+  ".sg-bg-staged": { backgroundColor: "var(--sg-staged)" },
+  ".sg-bg-removed": { backgroundColor: "var(--sg-removed)" },
+  ".sg-bg-added-text": { backgroundColor: "var(--sg-added-text)" },
+  ".sg-bg-staged-text": { backgroundColor: "var(--sg-staged-text)" },
+  ".sg-bg-removed-text": { backgroundColor: "var(--sg-removed-text)" },
+
   // The gutter.
   ".cm-gutters": {
     backgroundColor: "var(--sg-bg)",
@@ -163,11 +175,7 @@ const styles = EditorView.theme({
   ".sg-strong": { fontWeight: headingWeight },
   ".sg-strike": { textDecoration: "line-through" },
   ".sg-mono, .sg-code, .sg-html": { fontFamily: mono, fontSize: "0.9em" },
-  ".sg-code": {
-    backgroundColor: "var(--sg-code-bg)",
-    borderRadius: "3px",
-    padding: "0.08em 0.25em",
-  },
+  ".sg-code": { padding: "0.08em 0.25em" },
   ".sg-html, .sg-html-line": { color: "var(--sg-muted)" },
   ".sg-link": {
     color: "var(--sg-link)",
@@ -242,7 +250,6 @@ const styles = EditorView.theme({
   },
 
   // Code blocks and front matter.
-  ".sg-code-line": { backgroundColor: "var(--sg-code-bg)" },
   ".sg-code-info": { color: "var(--sg-muted)" },
   // The tokens of a fenced block's code, by role. A monospaced font is as wide in every weight
   // and slant, so the code's columns stay lined up.
@@ -358,26 +365,9 @@ const styles = EditorView.theme({
     padding: "0 0.4em",
   },
 
-  // Changes. Unstaged additions and removals are green and red; staged ones share a quieter blue.
-  ".sg-added-unstaged, .sg-edited-unstaged": {
-    backgroundColor: "var(--sg-added)",
-  },
-  ".sg-added-staged, .sg-edited-staged": {
-    backgroundColor: "var(--sg-staged)",
-  },
-  ".sg-inserted-unstaged": { backgroundColor: "var(--sg-added-text)" },
-  ".sg-inserted-staged": { backgroundColor: "var(--sg-staged-text)" },
+  // Changes. Their backgrounds are drawn in the backgrounds layer.
   ".sg-deleted": { textDecoration: "line-through" },
-  ".sg-deleted-unstaged": { backgroundColor: "var(--sg-removed-text)" },
-  ".sg-deleted-staged": {
-    backgroundColor: "var(--sg-staged-text)",
-    color: "var(--sg-muted)",
-  },
-  ".sg-removed-unstaged": { backgroundColor: "var(--sg-removed)" },
-  ".sg-removed-staged": {
-    backgroundColor: "var(--sg-staged)",
-    color: "var(--sg-muted)",
-  },
+  ".sg-deleted-staged, .sg-removed-staged": { color: "var(--sg-muted)" },
   ".sg-removed-row": { display: "flex" },
   ".sg-removed-row .sg-line": { flex: "1", minWidth: "0" },
   ".sg-removed-number": {
