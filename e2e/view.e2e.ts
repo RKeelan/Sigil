@@ -53,6 +53,21 @@ test("line numbers can be turned off", async ({ demo }) => {
   await expect(demo.page.locator(".sg-numbers")).toHaveCount(0);
 });
 
+test("the Reveal control switches between lines and constructs", async ({
+  demo,
+}) => {
+  await demo.open("basics");
+  await demo.setText("some **bold** and *more* here", 1);
+  const line = demo.page.locator(".cm-line").first();
+  await expect(line).toHaveText("some **bold** and *more* here");
+  await demo.page.getByRole("radio", { name: "Construct" }).check();
+  await expect(line).toHaveText("some bold and more here");
+  await demo.cursorAfter("**bo");
+  await expect(line).toHaveText("some **bold** and more here");
+  await demo.page.getByRole("radio", { name: "Line" }).check();
+  await expect(line).toHaveText("some **bold** and *more* here");
+});
+
 test("a heading's number sits on the heading's baseline", async ({ demo }) => {
   await demo.open("basics");
   await demo.setText("text\n\n# Heading\n", 0);

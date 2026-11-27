@@ -98,7 +98,7 @@ select {
   cursor: pointer;
 }
 
-/* Three radio buttons drawn as one control, with the chosen one filled. */
+/* Radio buttons drawn as one control, with the chosen one filled. */
 .segmented {
   gap: 0;
   margin: 0;

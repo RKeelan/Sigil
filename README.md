@@ -3,7 +3,7 @@
 [![CI](https://github.com/RKeelan/Sigil/actions/workflows/ci.yml/badge.svg)](https://github.com/RKeelan/Sigil/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-A live-preview Markdown editor component built on CodeMirror 6: one pane, formatting rendered in place, and the raw syntax shown only on the line the cursor is on. [`docs/design.md`](docs/design.md) says what it does and why, and the [demo site](https://rkeelan.github.io/Sigil/) lets you try it in a browser.
+A live-preview Markdown editor component built on CodeMirror 6: one pane, formatting rendered in place, and the raw syntax shown only on the line the cursor is on, or, with the `reveal` setting at `"construct"`, only in the construct the cursor touches. [`docs/design.md`](docs/design.md) says what it does and why, and the [demo site](https://rkeelan.github.io/Sigil/) lets you try it in a browser.
 
 ## Using it
 
@@ -27,7 +27,12 @@ const editor = new Sigil({
     // The index's new text, when a change is staged or unstaged.
     setIndex(text) {},
   },
-  settings: { theme: "system", lineNumbers: true, showChanges: true },
+  settings: {
+    theme: "system",
+    lineNumbers: true,
+    reveal: "line", // or "construct"
+    showChanges: true,
+  },
 });
 
 editor.setText(text); // the document changed outside the editor
