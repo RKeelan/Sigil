@@ -43,7 +43,7 @@ export interface Host {
   checkSpelling?(text: string): Promise<readonly Misspelling[]>;
   /** Called when the user adds a word to the dictionary. */
   addWord?(word: string): void;
-  /** Called with the index's new text when the user stages or unstages a change. */
+  /** Called with the index's new text when the user stages a change. */
   setIndex?(text: string): void;
 }
 
@@ -56,7 +56,7 @@ export interface Settings {
    * constructs it touches. See docs/design.md for what counts as a construct.
    */
   reveal: RevealScope;
-  /** Whether uncommitted changes are shown, once the host has supplied the texts to compare. */
+  /** Whether unstaged changes are shown, once the host has supplied the index to compare with. */
   showChanges: boolean;
   snippets: readonly Snippet[];
 }
@@ -84,12 +84,13 @@ export interface Options {
   now?: () => Date;
 }
 
-/** The texts a document's changes are worked out against. */
+/**
+ * The text a document's changes are worked out against: the file as it is in the index. Staged
+ * changes are in the index, so they show as plain text; the host offers unstaging, and supplies
+ * the index again afterwards.
+ */
 export interface ChangeBases {
-  /** The file as it is in the index. */
   index: string;
-  /** The file as it is at `HEAD`. */
-  head: string;
 }
 
 /** A live-preview Markdown editor. */
@@ -229,18 +230,14 @@ export class Sigil {
   }
 
   /**
-   * Supplies the texts that changes are worked out against, or null when there are none, as for
-   * a file that isn't in a repository.
+   * Supplies the text that changes are worked out against, or null when there is none, as for a
+   * file that isn't in a repository.
    */
   setChanges(texts: ChangeBases | null) {
     let value = null;
     if (texts) {
       const index = splitLines(texts.index);
-      value = {
-        head: splitLines(texts.head).text,
-        index: index.text,
-        indexEol: index.eol,
-      };
+      value = { index: index.text, indexEol: index.eol };
     }
     const had = this.hasBases;
     this.hasBases = value !== null;

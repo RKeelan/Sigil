@@ -7,12 +7,10 @@ import { type EditorView, layer, RectangleMarker } from "@codemirror/view";
  * on a line that is both.
  */
 const rules: readonly [selector: string, cls: string][] = [
-  [".sg-added-unstaged, .sg-edited-unstaged", "sg-bg-added"],
-  [".sg-added-staged, .sg-edited-staged, .sg-removed-staged", "sg-bg-staged"],
-  [".sg-removed-unstaged", "sg-bg-removed"],
-  [".sg-inserted-unstaged", "sg-bg-added-text"],
-  [".sg-deleted-unstaged", "sg-bg-removed-text"],
-  [".sg-inserted-staged, .sg-deleted-staged", "sg-bg-staged-text"],
+  [".sg-added, .sg-edited", "sg-bg-added"],
+  [".sg-removed", "sg-bg-removed"],
+  [".sg-inserted", "sg-bg-added-text"],
+  [".sg-deleted", "sg-bg-removed-text"],
   [".sg-code-line", "sg-bg-code"],
   [".sg-code", "sg-bg-code sg-bg-code-span"],
 ];

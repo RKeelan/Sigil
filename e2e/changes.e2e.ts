@@ -13,25 +13,22 @@ const head = readFileSync(join(samples, "changes.head.md"), "utf8");
 const index = readFileSync(join(samples, "changes.index.md"), "utf8");
 const text = readFileSync(join(samples, "changes.md"), "utf8");
 
-test("staged and unstaged changes are both shown, each with its button", async ({
+test("unstaged changes are shown with a Stage button, and staged ones as plain text", async ({
   demo,
 }) => {
   await demo.open("changes");
-  const stage = demo.page.locator(".sg-action-unstaged");
-  const unstage = demo.page.locator(".sg-action-staged");
+  const stage = demo.page.locator(".sg-action");
   await expect(stage.first()).toHaveText("Stage");
-  await expect(unstage.first()).toHaveText("Unstage");
   await expect(stage).toHaveCount(4);
-  await expect(unstage).toHaveCount(3);
   // An edit within a line is shown in the line: the old word struck out, the new one marked.
-  await expect(demo.page.locator(".sg-deleted-unstaged")).toHaveText("quie");
-  await expect(demo.page.locator(".sg-deleted-staged")).toHaveText("three");
-  await expect(demo.page.locator(".sg-inserted-staged")).toHaveText("four");
-  // Lines taken out are drawn where they were, numbered as they were in the text they came from.
-  const gone = demo.page.locator(".sg-removed-unstaged", {
-    hasText: "deleted since",
-  });
+  await expect(demo.page.locator(".sg-deleted")).toHaveText("quie");
+  // Lines taken out are drawn where they were, numbered as they were in the index.
+  const gone = demo.page.locator(".sg-removed", { hasText: "deleted since" });
   await expect(gone.locator(".sg-removed-number")).toHaveText("17");
+  // The staged changes, an edited word, an added item and a removed paragraph, aren't marked.
+  await expect(demo.line("four years")).not.toHaveClass(/sg-edited|sg-added/);
+  await expect(demo.line("candles")).not.toHaveClass(/sg-edited|sg-added/);
+  await expect(demo.page.getByText("gulls")).toHaveCount(0);
 });
 
 test("staging a change gives the host the index with that change applied", async ({
@@ -39,33 +36,49 @@ test("staging a change gives the host the index with that change applied", async
 }) => {
   await demo.open("changes");
   expect(await demo.page.evaluate(() => window.sigil.index)).toBe(index);
-  await demo.page.locator(".sg-action-unstaged").first().click();
+  await demo.page.locator(".sg-action").first().click();
   const expected = index.replace(
     "The harbour was quiet when the ship came in. Nobody on the quay looked up.",
     "The harbour was silent when the ship came in. Nobody on the quay looked up from their work.",
   );
   expect(await demo.page.evaluate(() => window.sigil.index)).toBe(expected);
-  await expect(demo.page.locator(".sg-action-unstaged")).toHaveCount(3);
-  await expect(demo.page.locator(".sg-action-staged")).toHaveCount(4);
+  await expect(demo.page.locator(".sg-action")).toHaveCount(3);
+  // The staged edit is drawn as plain text.
+  await expect(demo.page.locator(".sg-deleted")).toHaveCount(0);
+  await expect(demo.line("silent")).not.toHaveClass(/sg-edited/);
   // The document itself is untouched.
   expect(await demo.text()).toBe(text);
 });
 
 test("staging every change makes the index the document", async ({ demo }) => {
   await demo.open("changes");
-  const stage = demo.page.locator(".sg-action-unstaged");
+  const stage = demo.page.locator(".sg-action");
   for (let left = await stage.count(); left > 0; left = await stage.count())
     await stage.first().click();
   expect(await demo.page.evaluate(() => window.sigil.index)).toBe(text);
-  await expect(demo.page.locator(".sg-action-staged").first()).toBeVisible();
+  await expect(demo.page.locator(".sg-removed")).toHaveCount(0);
 });
 
-test("unstaging every change makes the index HEAD", async ({ demo }) => {
+test("the demo's Unstage all puts HEAD back in the index", async ({ demo }) => {
   await demo.open("changes");
-  const unstage = demo.page.locator(".sg-action-staged");
-  for (let left = await unstage.count(); left > 0; left = await unstage.count())
-    await unstage.first().click();
+  const unstage = demo.page.getByRole("button", { name: "Unstage all" });
+  await demo.page.locator(".sg-action").first().click();
+  await unstage.click();
   expect(await demo.page.evaluate(() => window.sigil.index)).toBe(head);
+  await expect(unstage).toBeDisabled();
+  // The changes that were staged are shown again, as changes from the index. Against HEAD, the
+  // edited line and the heading added below it are one change of one line into three, which is
+  // drawn as the old line taken out and the new lines put in rather than as an edit to the line.
+  await expect(
+    demo.page.locator(".sg-removed", { hasText: "three years" }),
+  ).toHaveCount(1);
+  await expect(demo.line("four years")).toHaveClass(/sg-added/);
+  await expect(demo.line("candles")).toHaveClass(/sg-added/);
+  await expect(
+    demo.page.locator(".sg-removed", { hasText: "gulls" }),
+  ).toHaveCount(1);
+  await demo.open("basics");
+  await expect(unstage).toBeDisabled();
 });
 
 test("typing shows up as an unstaged change", async ({ demo }) => {
@@ -74,8 +87,8 @@ test("typing shows up as an unstaged change", async ({ demo }) => {
   await demo.setText("a line of some length\n\ntwo\n");
   await demo.cursor(6);
   await demo.page.keyboard.type(" more");
-  await expect(demo.page.locator(".sg-inserted-unstaged")).toHaveText(" more");
-  await expect(demo.page.locator(".sg-action-unstaged")).toHaveCount(1);
+  await expect(demo.page.locator(".sg-inserted")).toHaveText(" more");
+  await expect(demo.page.locator(".sg-action")).toHaveCount(1);
   // The space and the word are two steps of undo.
   await demo.page.keyboard.press("Control+z");
   await demo.page.keyboard.press("Control+z");
@@ -83,8 +96,8 @@ test("typing shows up as an unstaged change", async ({ demo }) => {
   // A line that is mostly rewritten is shown as the old line taken out and the new one put in.
   await demo.cursorAfter("two");
   await demo.page.keyboard.type(" hundred and six");
-  await expect(demo.page.locator(".sg-removed-unstaged")).toHaveText("3two");
-  await expect(demo.page.locator(".sg-added-unstaged")).toHaveText(
+  await expect(demo.page.locator(".sg-removed")).toHaveText("3two");
+  await expect(demo.page.locator(".sg-added")).toHaveText(
     "two hundred and six",
   );
 });
@@ -108,12 +121,12 @@ test("a change in folded front matter opens the fold", async ({ demo }) => {
   const source = await demo.text();
   await demo.page.evaluate(
     (changed) => {
-      window.sigil.editor.setChanges({ index: changed, head: changed });
+      window.sigil.editor.setChanges({ index: changed });
     },
     source.replace("draft: true", "draft: false"),
   );
   await expect(demo.line("draft: true")).toBeVisible();
-  await expect(demo.page.locator(".sg-action-unstaged")).toHaveCount(1);
+  await expect(demo.page.locator(".sg-action")).toHaveCount(1);
 });
 
 test("a selection across removed lines doesn't show the browser's own", async ({
@@ -131,7 +144,7 @@ test("a selection across removed lines doesn't show the browser's own", async ({
     });
     view.focus();
   });
-  const removed = demo.page.locator(".sg-removed-unstaged", {
+  const removed = demo.page.locator(".sg-removed", {
     hasText: "deleted since",
   });
   const shot = await removed.screenshot();

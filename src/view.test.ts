@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { applyChange } from "./changes/view.ts";
+import { blockKey } from "./changes/model.ts";
+import { applyChange, shownChanges } from "./changes/view.ts";
 import { type Host, type Options, Sigil } from "./editor.ts";
 import { foldedFrontMatter } from "./frontmatter.ts";
 import { measureIn, remeasure } from "./render/measure.ts";
@@ -310,77 +311,92 @@ describe("front matter", () => {
 });
 
 describe("changes", () => {
-  const head = "one\ntwo words here to keep\nthree\nfour\n";
-  const index = "one\ntwo words here to keep\nfour\n";
-  const text = "one\ntwo more words here to keep\nfour\nfive\n";
+  const index = "one\ntwo words here to keep\nmiddle\nthree\nfour\n";
+  const text = "one\ntwo more words here to keep\nmiddle\nfour\nfive\n";
 
   function review(host: Host = {}): Sigil {
     const sigil = open(text, { host });
-    sigil.setChanges({ index, head });
+    sigil.setChanges({ index });
     return sigil;
   }
 
-  test("draws lines taken out where they were, numbered from their own text", () => {
+  const count = (sigil: Sigil, selector: string) =>
+    sigil.view.dom.querySelectorAll(selector).length;
+
+  test("draws lines taken out where they were, numbered from the index", () => {
     const sigil = review();
-    const removed = sigil.view.contentDOM.querySelector(".sg-removed-staged");
-    expect(removed?.querySelector(".sg-removed-number")?.textContent).toBe("3");
+    const removed = sigil.view.contentDOM.querySelector(".sg-removed");
+    expect(removed?.querySelector(".sg-removed-number")?.textContent).toBe("4");
     expect(removed?.querySelector(".sg-line")?.textContent).toBe("three");
   });
 
   test("marks an edit within a line, and lines put in", () => {
     const sigil = review();
     const content = sigil.view.contentDOM;
-    expect(content.querySelector(".sg-inserted-unstaged")?.textContent).toBe(
-      "more ",
-    );
-    expect(content.querySelector(".sg-added-unstaged")?.textContent).toBe(
-      "five",
-    );
-    expect(content.querySelectorAll(".sg-edited-unstaged").length).toBe(1);
+    expect(content.querySelector(".sg-inserted")?.textContent).toBe("more ");
+    expect(content.querySelector(".sg-added")?.textContent).toBe("five");
+    expect(content.querySelectorAll(".sg-edited").length).toBe(1);
+    expect(count(sigil, ".sg-numbers .sg-gutter-added")).toBe(2);
+    expect(count(sigil, ".sg-numbers .sg-gutter-removed")).toBe(1);
   });
 
   test("draws an edit to a table row as the old row above the new", () => {
     const table = "| a | b |\n|---|---|\n| 1 | 2 |";
     const sigil = open(`intro\n\n${table}`);
-    sigil.setChanges({
-      index: `intro\n\n${table.replace("2", "9")}`,
-      head: `intro\n\n${table}`,
-    });
-    const removed = sigil.view.contentDOM.querySelector(".sg-removed-unstaged");
+    sigil.setChanges({ index: `intro\n\n${table.replace("2", "9")}` });
+    const removed = sigil.view.contentDOM.querySelector(".sg-removed");
     expect(removed?.querySelector(".sg-row")?.textContent).toBe("19");
-    expect(
-      sigil.view.contentDOM.querySelectorAll(".sg-inserted-unstaged").length,
-    ).toBe(0);
+    expect(count(sigil, ".sg-inserted")).toBe(0);
   });
 
-  test("gives each change a button that stages or unstages it", () => {
+  test("gives each change a button that stages it", () => {
     const indexes: string[] = [];
     const sigil = review({ setIndex: (value) => indexes.push(value) });
     const labels = () =>
       [...sigil.view.dom.querySelectorAll(".sg-actions .sg-action")].map(
         (button) => button.textContent,
       );
-    expect(labels()).toEqual(["Stage", "Unstage", "Stage"]);
-    mousedown(sigil.view.dom.querySelector(".sg-action-unstaged"));
-    expect(indexes).toEqual(["one\ntwo more words here to keep\nfour\n"]);
-    // The staged edit and the staged removal below it are on neighbouring lines, which makes
-    // them one change.
-    expect(labels()).toEqual(["Unstage", "Stage"]);
-    mousedown(sigil.view.dom.querySelector(".sg-action-staged"));
-    expect(indexes[1]).toBe(head);
+    expect(labels()).toEqual(["Stage", "Stage", "Stage"]);
+    mousedown(sigil.view.dom.querySelector(".sg-action"));
+    expect(indexes).toEqual([
+      "one\ntwo more words here to keep\nmiddle\nthree\nfour\n",
+    ]);
+    expect(labels()).toEqual(["Stage", "Stage"]);
+  });
+
+  test("draws a staged change as plain text", () => {
+    const sigil = review();
+    for (const block of [...shownChanges(sigil.view.state)].reverse())
+      applyChange(sigil.view, blockKey(block));
+    expect(shownChanges(sigil.view.state)).toEqual([]);
+    for (const selector of [
+      ".sg-edited",
+      ".sg-inserted",
+      ".sg-deleted",
+      ".sg-added",
+      ".sg-removed",
+      ".sg-gutter-added",
+      ".sg-gutter-removed",
+      ".sg-action",
+    ])
+      expect(count(sigil, selector)).toBe(0);
+    expect(drawn(sigil)).toEqual([
+      "one",
+      "two more words here to keep",
+      "middle",
+      "four",
+      "five",
+      "",
+    ]);
   });
 
   test("puts lines taken from the end below the last line", () => {
     const sigil = open("one");
-    sigil.setChanges({ index: "one\ntwo", head: "one\ntwo" });
-    const removed = sigil.view.contentDOM.querySelector(".sg-removed-unstaged");
+    sigil.setChanges({ index: "one\ntwo" });
+    const removed = sigil.view.contentDOM.querySelector(".sg-removed");
     expect(removed?.textContent).toBe("2two");
-    applyChange(sigil.view, "unstaged:1:2:1:1");
-    const content = sigil.view.contentDOM;
-    expect(content.querySelector(".sg-removed-unstaged")).toBeNull();
-    expect(content.querySelector(".sg-removed-staged")?.textContent).toBe(
-      "2two",
-    );
+    applyChange(sigil.view, "1:2:1:1");
+    expect(count(sigil, ".sg-removed")).toBe(0);
   });
 
   test("keeps a line of syntax in view while a change to it is waiting", () => {
@@ -388,15 +404,12 @@ describe("changes", () => {
     const sigil = open(source);
     sigil.view.dispatch({ selection: { anchor: source.length } });
     expect(drawn(sigil)).toEqual(["js", "let x;", "", "end"]);
-    sigil.setChanges({
-      index: source.replace("\n```\n", "\n~~~\n"),
-      head: source,
-    });
+    sigil.setChanges({ index: source.replace("\n```\n", "\n~~~\n") });
     // The fence's row is back, marked as changed, with its syntax hidden as usual.
     expect(drawn(sigil)).toEqual(["js", "let x;", "", "", "end"]);
     const fence = sigil.view.contentDOM.querySelector(".cm-line.sg-code-last");
-    expect(fence?.className).toMatch(/-unstaged/);
-    sigil.setChanges({ index: source, head: source });
+    expect(fence?.classList.contains("sg-added")).toBe(true);
+    sigil.setChanges({ index: source });
     expect(drawn(sigil)).toEqual(["js", "let x;", "", "end"]);
   });
 
@@ -404,9 +417,9 @@ describe("changes", () => {
     const source = "---\na: 1\n---\n\nbody";
     const sigil = open(source);
     expect(foldedFrontMatter(sigil.view.state)).not.toBeNull();
-    sigil.setChanges({ index: source.replace("1", "2"), head: source });
+    sigil.setChanges({ index: source.replace("1", "2") });
     expect(foldedFrontMatter(sigil.view.state)).toBeNull();
-    sigil.setChanges({ index: source, head: source });
+    sigil.setChanges({ index: source });
     expect(foldedFrontMatter(sigil.view.state)).not.toBeNull();
   });
 });

@@ -13,7 +13,7 @@ The component knows nothing about its host. Its first host is a VS Code extensio
 * Handle CommonMark and GitHub-flavoured Markdown, including a list that directly follows a paragraph, and fenced quotes opened and closed by `>>>` on a line of its own.
 * Spell-check through the host, and add words through it, so that a host can use the dictionaries the user already has.
 * Offer a theme setting of Light, Dark or System, where System follows the host.
-* Show uncommitted changes in the rendered view, and stage and unstage them there, a change at a time.
+* Show unstaged changes in the rendered view, and stage them there, a change at a time.
 
 ## Line numbers
 
@@ -70,16 +70,17 @@ The host supplies everything outside the editor:
 * Document sync: the host sends the initial text and outside changes, and the component reports each edit.
 * Spell-checking: the host is given text and returns misspelled ranges, and is told when the user adds a word.
 * Theme: the host says whether it is light or dark, which System follows. A host that says nothing leaves System to the page's `prefers-color-scheme`.
-* Changes: the host supplies the index and `HEAD` texts, and is given the new index text when the user stages or unstages a change.
+* Changes: the host supplies the index text, and is given the new index text when the user stages a change. Unstaging is the host's to offer; it supplies the new index text afterwards.
 
 ## Changes and staging
 
 Staging can mark changes as reviewed: changes someone else made, such as a coding agent, are read, and each is staged once it has been checked. Doing that in the rendered view means reviewing prose as it reads rather than as source.
 
-* The host gives the component two base texts: the file as it is in the index, and as it is at `HEAD`. The component compares the document with each and shows the differences inline, rendered like the rest of the text: added text marked in the gutter and on its background, and removed text shown as a rendered widget where it was. CodeMirror's merge package (`@codemirror/merge`) has an inline mode, `unifiedMergeView`, that does this for one base, and is the place to start.
-* A change between the index and the document is unstaged, and has Stage. A change between `HEAD` and the index is staged, and has Unstage. Both kinds are shown at once, distinguished by colour, so the view says what has been reviewed and what hasn't.
-* Removed lines have no number in the document. Their widget shows the lines' numbers from the base, set apart from the document's own.
-* Stage and Unstage are worked out as text: the component computes what the index should hold, the index text with that one change applied or taken back, and gives it to the host. A host using the `git` CLI writes it with `git hash-object -w --stdin` and `git update-index --cacheinfo`, which avoids building a patch for `git apply --cached`.
+* The host gives the component the file as it is in the index. The component compares the document with it and shows the differences inline, rendered like the rest of the text: added text marked in the gutter and on its background, and removed text shown as a rendered widget where it was. CodeMirror's merge package (`@codemirror/merge`) has an inline mode, `unifiedMergeView`, that does this for one base, and is the place to start.
+* Each change between the index and the document is unstaged, and has Stage. A staged change is in the index, so it isn't a change from the index: it looks like the rest of the text, with no background, gutter bar or button, and lines it removed aren't shown. This is how VS Code's diff view of the working tree shows a file, and it leaves in view only what is still to be reviewed.
+* Unstaging belongs to the host, as it does in VS Code, whose Source Control view unstages a file and whose diff of the index against `HEAD` unstages a range. After unstaging, the host supplies the new index text, and the unstaged changes reappear.
+* Removed lines have no number in the document. Their widget shows the lines' numbers from the index, set apart from the document's own.
+* Stage is worked out as text: the component computes what the index should hold, the index text with that one change applied, and gives it to the host. A host using the `git` CLI writes it with `git hash-object -w --stdin` and `git update-index --cacheinfo`, which avoids building a patch for `git apply --cached`.
 * Showing changes is a mode that can be turned off, leaving the plain rendered view.
 
 ## Demo page
@@ -88,6 +89,7 @@ The repository holds a demo page: a plain web page that hosts the component in a
 
 * It loads sample documents chosen to exercise the hard cases: tables, nested lists, fences, front matter, long lines and a long manuscript.
 * Its spell-checker is a stub with a fixed word list.
+* It holds the index in memory, and has an Unstage all button that puts `HEAD`'s text back in the index, standing in for a host's own way of unstaging.
 * Its host never says whether it is light or dark, so the System theme follows the browser's `prefers-color-scheme`. The page's own colours are the editor's, and follow the same setting.
 * It exposes the editor and the document's text on `window`, so a test, or an agent driving a browser, can type into the page and then check the source text byte for byte.
 * It applies the same content security policy as a VS Code webview, so code that would fail in VS Code fails here first.
