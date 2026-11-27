@@ -340,6 +340,27 @@ describe("changes", () => {
     expect(count(sigil, ".sg-numbers .sg-gutter-removed")).toBe(1);
   });
 
+  test("marks an edit within a line that has lines put in beside it", () => {
+    const sigil = open("a\naway for four years\n\nnew line\nb");
+    sigil.setChanges({ index: "a\naway for three years\nb" });
+    const content = sigil.view.contentDOM;
+    expect(content.querySelector(".sg-deleted")?.textContent).toBe("three");
+    expect(content.querySelector(".sg-inserted")?.textContent).toBe("four");
+    expect(count(sigil, ".sg-edited")).toBe(1);
+    expect(count(sigil, ".sg-added")).toBe(2);
+    expect(count(sigil, ".sg-removed")).toBe(0);
+    expect(count(sigil, ".sg-actions .sg-action")).toBe(1);
+  });
+
+  test("gives a change one button, on the removed lines above its edited line", () => {
+    const sigil = open("a\nthe slow brown fox\nb");
+    sigil.setChanges({ index: "a\ngone entirely\nthe quick brown fox\nb" });
+    const removed = sigil.view.contentDOM.querySelector(".sg-removed");
+    expect(removed?.textContent).toBe("2gone entirely");
+    expect(count(sigil, ".sg-edited")).toBe(1);
+    expect(count(sigil, ".sg-actions .sg-action")).toBe(1);
+  });
+
   test("draws an edit to a table row as the old row above the new", () => {
     const table = "| a | b |\n|---|---|\n| 1 | 2 |";
     const sigil = open(`intro\n\n${table}`);
