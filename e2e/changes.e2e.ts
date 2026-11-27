@@ -67,12 +67,16 @@ test("the demo's Unstage all puts HEAD back in the index", async ({ demo }) => {
   expect(await demo.page.evaluate(() => window.sigil.index)).toBe(head);
   await expect(unstage).toBeDisabled();
   // The changes that were staged are shown again, as changes from the index. Against HEAD, the
-  // edited line and the heading added below it are one change of one line into three, which is
-  // drawn as the old line taken out and the new lines put in rather than as an edit to the line.
+  // edited line and the heading added below it are one change of one line into three, in which
+  // the edited line is still drawn as an edit to it.
+  await expect(demo.line("four years")).toHaveClass(/sg-edited/);
+  await expect(
+    demo.line("four years").locator(".sg-deleted", { hasText: "three" }),
+  ).toHaveCount(1);
+  await expect(demo.line("What she bought")).toHaveClass(/sg-added/);
   await expect(
     demo.page.locator(".sg-removed", { hasText: "three years" }),
-  ).toHaveCount(1);
-  await expect(demo.line("four years")).toHaveClass(/sg-added/);
+  ).toHaveCount(0);
   await expect(demo.line("candles")).toHaveClass(/sg-added/);
   await expect(
     demo.page.locator(".sg-removed", { hasText: "gulls" }),

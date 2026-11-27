@@ -72,14 +72,15 @@ class RemovedText extends WidgetType {
 
 /**
  * Lines a change took out, drawn where they were and rendered as the text around them is. They
- * have no line numbers in the document, so each row carries its number in the index.
+ * have no line numbers in the document, so each row carries its number in the index. The key is
+ * the change's when the lines are its first row, which carries its button, and null otherwise.
  */
 class RemovedLines extends WidgetType {
   constructor(
     readonly base: Text,
     readonly from: number,
     readonly to: number,
-    readonly key: string,
+    readonly key: string | null,
   ) {
     super();
   }
@@ -209,76 +210,73 @@ function build(state: EditorState): Model | null {
   if (!base) return null;
   const { doc } = state;
   const index = linesOf(base.index);
-  const blocks = buildBlocks(index, linesOf(doc));
+  // A table's rows are drawn as a whole, so an edit inside one would be hidden. The row as it
+  // was is shown above the row as it is instead.
+  const blocks = buildBlocks(
+    index,
+    linesOf(doc),
+    (hunk) => !touchesTable(state, hunk.fromB, hunk.toB),
+  );
   const decorations: Range<Decoration>[] = [];
   const classes: Range<GutterMarker>[] = [];
   const actions: Range<GutterMarker>[] = [];
   for (const block of blocks) {
     const key = blockKey(block);
-    const { added } = block;
-    // A table's rows are drawn as a whole, so an edit inside one would be hidden. The row as it
-    // was is shown above the row as it is instead.
-    const inline =
-      block.edits !== null &&
-      added !== null &&
-      !touchesTable(state, added.from, added.from + block.edits.length);
-    if (block.edits && added && inline) {
-      block.edits.forEach((spans, i) => {
-        const line = doc.line(added.from + i + 1);
-        const old = index[block.hunk.fromA + i] as string;
-        decorations.push(
-          Decoration.line({ class: "sg-edited" }).range(line.from),
-        );
-        classes.push(addedGutterClass.range(line.from));
-        for (const span of spans) {
-          if (span.toA > span.fromA)
-            decorations.push(
-              Decoration.widget({
-                widget: new RemovedText(old.slice(span.fromA, span.toA)),
-                side: -1,
-              }).range(line.from + span.fromB),
-            );
-          if (span.toB > span.fromB)
-            decorations.push(
-              Decoration.mark({ class: "sg-inserted" }).range(
-                line.from + span.fromB,
-                line.from + span.toB,
-              ),
-            );
-        }
-      });
-      actions.push(new ActionMarker(key).range(doc.line(added.from + 1).from));
-      continue;
+    const { hunk } = block;
+    const edited = new Set<number>();
+    for (const edit of block.edits) {
+      edited.add(edit.b);
+      const line = doc.line(edit.b + 1);
+      const old = index[edit.a] as string;
+      decorations.push(
+        Decoration.line({ class: "sg-edited" }).range(line.from),
+      );
+      classes.push(addedGutterClass.range(line.from));
+      for (const span of edit.spans) {
+        if (span.toA > span.fromA)
+          decorations.push(
+            Decoration.widget({
+              widget: new RemovedText(old.slice(span.fromA, span.toA)),
+              side: -1,
+            }).range(line.from + span.fromB),
+          );
+        if (span.toB > span.fromB)
+          decorations.push(
+            Decoration.mark({ class: "sg-inserted" }).range(
+              line.from + span.fromB,
+              line.from + span.toB,
+            ),
+          );
+      }
     }
-    if (block.removed) {
+    for (let n = hunk.fromB; n < hunk.toB; n++) {
+      if (edited.has(n)) continue;
+      const line = doc.line(n + 1);
+      decorations.push(Decoration.line({ class: "sg-added" }).range(line.from));
+      classes.push(addedGutterClass.range(line.from));
+    }
+    // The change's first row carries its button: removed lines drawn above its first line, or
+    // that line itself.
+    let buttoned = false;
+    for (const removal of block.removals) {
+      const first = removal.at === hunk.fromB;
+      buttoned ||= first;
       const widget = new RemovedLines(
         base.index,
-        block.removed.from,
-        block.removed.to,
-        key,
+        removal.from,
+        removal.to,
+        first ? key : null,
       );
       // Lines removed from the end of the document go below its last line.
-      const below = block.at >= doc.lines;
+      const below = removal.at >= doc.lines;
       decorations.push(
         Decoration.widget({ widget, block: true, side: below ? 1 : -1 }).range(
-          below ? doc.length : doc.line(block.at + 1).from,
+          below ? doc.length : doc.line(removal.at + 1).from,
         ),
       );
     }
-    if (added) {
-      for (let n = added.from; n < added.to; n++) {
-        const line = doc.line(n + 1);
-        decorations.push(
-          Decoration.line({ class: "sg-added" }).range(line.from),
-        );
-        classes.push(addedGutterClass.range(line.from));
-      }
-      // The removed lines' widget carries the button when there is one.
-      if (!block.removed)
-        actions.push(
-          new ActionMarker(key).range(doc.line(added.from + 1).from),
-        );
-    }
+    if (!buttoned)
+      actions.push(new ActionMarker(key).range(doc.line(hunk.fromB + 1).from));
   }
   return {
     blocks,
@@ -334,10 +332,7 @@ function touchesFrontMatter(state: EditorState): boolean {
   const end = frontMatterEnd(state.doc);
   if (!end) return false;
   const lines = state.doc.lineAt(end).number;
-  return shownChanges(state).some(
-    (block) =>
-      block.at < lines || (block.added !== null && block.added.from < lines),
-  );
+  return shownChanges(state).some(({ hunk }) => hunk.fromB < lines);
 }
 
 /**
@@ -348,9 +343,9 @@ function touchesFrontMatter(state: EditorState): boolean {
 function touchesLine(state: EditorState, number: number): boolean {
   const line = number - 1;
   return shownChanges(state).some(
-    ({ added, removed, at }) =>
-      (added !== null && added.from <= line && line < added.to) ||
-      (removed !== null && (at === line || at === line + 1)),
+    ({ hunk, removals }) =>
+      (hunk.fromB <= line && line < hunk.toB) ||
+      removals.some(({ at }) => at === line || at === line + 1),
   );
 }
 
@@ -373,7 +368,9 @@ export function changesView(setIndex: (text: string) => void): Extension {
       side: "after",
       markers: (view) => view.state.field(model)?.actions ?? RangeSet.empty,
       widgetMarker: (_view, widget) =>
-        widget instanceof RemovedLines ? new ActionMarker(widget.key) : null,
+        widget instanceof RemovedLines && widget.key !== null
+          ? new ActionMarker(widget.key)
+          : null,
       initialSpacer: () => new ActionSpacer(),
     }),
   ];

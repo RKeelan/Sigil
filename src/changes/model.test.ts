@@ -8,6 +8,7 @@ import {
   indexAfter,
   lineEdits,
   linesOf,
+  removals,
 } from "./model.ts";
 
 const lines = (text: string) => text.split("\n");
@@ -63,38 +64,115 @@ describe("lineEdits", () => {
   test("gives the changes within a line that keeps most of its text", () => {
     expect(
       lineEdits(["the quick brown fox"], ["the slow brown fox"], hunk),
-    ).toEqual([[{ fromA: 4, toA: 9, fromB: 4, toB: 8 }]]);
+    ).toEqual([
+      { a: 0, b: 0, spans: [{ fromA: 4, toA: 9, fromB: 4, toB: 8 }] },
+    ]);
   });
 
   test("gives up on a line that is mostly rewritten", () => {
-    expect(lineEdits(["one"], ["something else entirely"], hunk)).toBeNull();
+    expect(lineEdits(["one"], ["something else entirely"], hunk)).toEqual([]);
   });
 
-  test("gives up when lines were put in or taken out", () => {
+  test("pairs an edited line with the line it became when lines were put in beside it", () => {
+    const edits = lineEdits(
+      ["away for three years"],
+      ["away for four years", "", "## Bought"],
+      { fromA: 0, toA: 1, fromB: 0, toB: 3 },
+    );
+    expect(edits.map(({ a, b }) => [a, b])).toEqual([[0, 0]]);
     expect(
-      lineEdits(["a"], ["a", "b"], { fromA: 0, toA: 1, fromB: 0, toB: 2 }),
-    ).toBeNull();
+      lineEdits(["intro", "the quick brown fox"], ["the slow brown fox"], {
+        fromA: 0,
+        toA: 2,
+        fromB: 0,
+        toB: 1,
+      }).map(({ a, b }) => [a, b]),
+    ).toEqual([[1, 0]]);
+  });
+
+  test("keeps pairs in order on both sides, keeping the most text", () => {
+    const a = ["alpha beta gamma", "delta epsilon zeta"];
+    const b = ["# new", "delta epsilon zeta!", "alpha beta gamma!"];
+    const edits = lineEdits(a, b, { fromA: 0, toA: 2, fromB: 0, toB: 3 });
+    expect(edits.map(({ a, b }) => [a, b])).toEqual([[1, 1]]);
+  });
+
+  test("pairs long paragraphs with their edits among paragraphs put in", () => {
+    const words = (seed: number) =>
+      Array.from({ length: 60 }, (_, k) => `p${seed}w${k}`);
+    const old = [1, 2, 3].map((seed) => words(seed));
+    const a = old.map((w) => w.join(" "));
+    const edited = old.map((w) =>
+      w.map((word, k) => (k % 10 === 5 ? "changed" : word)).join(" "),
+    );
+    const b = [
+      words(4).join(" "),
+      edited[0],
+      edited[1],
+      words(5).join(" "),
+      edited[2],
+    ] as string[];
+    const edits = lineEdits(a, b, { fromA: 0, toA: 3, fromB: 0, toB: 5 });
+    expect(edits.map(({ a, b }) => [a, b])).toEqual([
+      [0, 1],
+      [1, 2],
+      [2, 4],
+    ]);
+  });
+
+  test("pairs a long paragraph with small edits all through it", () => {
+    const before =
+      "The colour of the harbour was grey, and the neighbours gathered on the quay to watch the ship come in; nobody spoke, and the gulls circled overhead in the cold morning air.";
+    const after = before
+      .split(" ")
+      .map((word, k) => (k % 2 ? word.replace(/our/, "or") || word : word))
+      .join(" ")
+      .replace(/,/g, ";")
+      .replace(/the /g, "teh ");
+    const edits = lineEdits([before], [after, "", "## Added"], {
+      fromA: 0,
+      toA: 1,
+      fromB: 0,
+      toB: 3,
+    });
+    expect(edits.map(({ a, b }) => [a, b])).toEqual([[0, 0]]);
+  });
+
+  test("pairs nothing when no line was taken out or none was put in", () => {
     expect(
       lineEdits([], ["a"], { fromA: 0, toA: 0, fromB: 0, toB: 1 }),
-    ).toBeNull();
+    ).toEqual([]);
+  });
+});
+
+describe("removals", () => {
+  test("puts each run of lines that aren't edits above the lines put in where it was", () => {
+    const hunk = { fromA: 0, toA: 4, fromB: 0, toB: 3 };
+    const spans: never[] = [];
+    expect(removals(hunk, [{ a: 1, b: 1, spans }])).toEqual([
+      { from: 0, to: 1, at: 0 },
+      { from: 2, to: 4, at: 2 },
+    ]);
+    expect(removals(hunk, [])).toEqual([{ from: 0, to: 4, at: 0 }]);
   });
 });
 
 describe("buildBlocks", () => {
   const summary = (blocks: Block[]) =>
-    blocks.map(
-      ({ at, added, removed }) =>
-        `at ${at} added ${added ? `${added.from}-${added.to}` : "none"} removed ${
-          removed ? `${removed.from}-${removed.to}` : "none"
-        }`,
+    blocks.map(({ hunk, edits, removals }) =>
+      [
+        `${hunk.fromB}-${hunk.toB}`,
+        ...edits.map(({ a, b }) => `edit ${a}>${b}`),
+        ...removals.map(({ from, to, at }) => `removed ${from}-${to} at ${at}`),
+      ].join(" "),
     );
 
   test("finds the changes between the index and the document", () => {
     const index = lines("one\nTWO\nthree\nfour\nfive");
     const doc = lines("zero\none\nTWO\nthree\nfive");
     expect(summary(buildBlocks(index, doc))).toEqual([
-      "at 0 added 0-1 removed none",
-      "at 4 added none removed 3-4",
+      "0-1",
+      "4-4 removed 3-4 at 4",
     ]);
   });
 
@@ -103,8 +181,22 @@ describe("buildBlocks", () => {
       lines("the quick brown fox jumps over the lazy dog"),
       lines("the quiet brown fox jumps over the lazy dog"),
     );
-    expect(block?.edits).toEqual([[{ fromA: 4, toA: 9, fromB: 4, toB: 9 }]]);
+    expect(block?.edits).toEqual([
+      { a: 0, b: 0, spans: [{ fromA: 4, toA: 9, fromB: 4, toB: 9 }] },
+    ]);
+    expect(block?.removals).toEqual([]);
     expect(blockKey(block as Block)).toBe("0:1:0:1");
+  });
+
+  test("shows an edited line as an edit when lines were put in beside it", () => {
+    const index = lines("# Notes\n\naway for three years\n\n- bread");
+    const doc = lines("# Notes\n\naway for four years\n\n## Bought\n\n- bread");
+    expect(summary(buildBlocks(index, doc))).toEqual(["2-5 edit 2>2"]);
+  });
+
+  test("shows no edits in a change that can't show them", () => {
+    const blocks = buildBlocks(lines("a cat"), lines("a hat"), () => false);
+    expect(summary(blocks)).toEqual(["0-1 removed 0-1 at 0"]);
   });
 });
 
