@@ -276,7 +276,8 @@ test("a fenced quote and a marked quote both carry a bar", async ({ demo }) => {
     "intro\n\n> marked\n\n>>>\nfenced\n\nstill fenced\n>>>\n\nend\n",
     0,
   );
-  await expect(demo.page.locator(".sg-quote")).toHaveCount(6);
+  // The fenced quote's `>>>` lines are hidden, so its bar runs beside its three lines of content.
+  await expect(demo.page.locator(".sg-quote")).toHaveCount(4);
   await expect(demo.line("still fenced").locator(".sg-quote")).toHaveCount(1);
   await expect(demo.line("end").locator(".sg-quote")).toHaveCount(0);
 });

@@ -37,7 +37,7 @@ An older way to write a heading
 > - With two items
 
 >>>
-A fenced quote opens and closes with three angle brackets on a line of their own.
+A fenced quote opens and closes with three angle brackets on a line of their own, which are shown only while the cursor is on them.
 
 It can hold several paragraphs without a mark on every line:
 

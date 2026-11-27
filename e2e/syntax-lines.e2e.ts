@@ -1,10 +1,12 @@
 import { type DemoPage, expect, test } from "./demo.ts";
 
-// Lines that hold nothing but syntax, a fenced block's closing fence and a setext heading's
-// underline, take up no room until the cursor is in the construct they belong to.
+// Lines that hold nothing but syntax, such as a fenced block's closing fence, a setext heading's
+// underline and a fenced quote's `>>>` lines, take up no room until the cursor is in the
+// construct they belong to.
 
 const code = "intro\n\n```js\nlet x;\nlet y;\n```\n\nend\n";
 const heading = "intro\n\nTitle\n=====\n\nend\n";
+const quote = "intro\n\n>>>\nquoted\n>>>\n\nend\n";
 
 /** The number of the line the cursor is on. */
 function cursorLine(demo: DemoPage): Promise<number> {
@@ -235,4 +237,46 @@ test("Backspace on a blank line below a hidden fence removes the blank line", as
   await demo.setText(code, code.indexOf("\n\nend") + 1);
   await demo.page.keyboard.press("Backspace");
   expect(await demo.text()).toBe("intro\n\n```js\nlet x;\nlet y;\n```\nend\n");
+});
+
+test("a fenced quote's fences take up no room until the cursor is on them", async ({
+  demo,
+}) => {
+  await demo.open("basics");
+  await demo.setText(quote, 0);
+  const fences = demo.page.locator(".cm-line", { hasText: ">>>" });
+  await expect(fences).toHaveCount(0);
+  await expect
+    .poll(() => numbers(demo))
+    .toEqual(["1", "2", "4", "6", "7", "8"]);
+  const after = await top(demo, "end");
+  const lines: number[] = [];
+  const shown: number[] = [];
+  for (let i = 0; i < 5; i++) {
+    await demo.page.keyboard.press("ArrowDown");
+    lines.push(await cursorLine(demo));
+    shown.push(await fences.count());
+  }
+  // Each fence is shown while the cursor is on it, and hidden again once the cursor moves into
+  // the quote or out of it.
+  expect(lines).toEqual([2, 3, 4, 5, 6]);
+  expect(shown).toEqual([0, 1, 0, 1, 0]);
+  expect(await top(demo, "end")).toBe(after);
+  await demo.cursorAfter("quoted\n>>>");
+  await expect(fences).toHaveCount(1);
+  expect(await top(demo, "end")).toBeGreaterThan(after);
+});
+
+test("Backspace below a hidden quote fence shows the fence before it edits it", async ({
+  demo,
+}) => {
+  await demo.open("basics");
+  const text = ">>>\nquoted\n>>>\nend\n";
+  await demo.setText(text, ">>>\nquoted\n>>>\n".length);
+  await demo.page.keyboard.press("Backspace");
+  expect(await demo.text()).toBe(text);
+  expect(await cursorLine(demo)).toBe(3);
+  await expect(demo.line(">>>")).toBeVisible();
+  await demo.page.keyboard.press("Backspace");
+  expect(await demo.text()).toBe(">>>\nquoted\n>>\nend\n");
 });
