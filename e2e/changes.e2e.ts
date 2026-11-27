@@ -115,3 +115,47 @@ test("a change in folded front matter opens the fold", async ({ demo }) => {
   await expect(demo.line("draft: true")).toBeVisible();
   await expect(demo.page.locator(".sg-action-unstaged")).toHaveCount(1);
 });
+
+test("a selection across removed lines doesn't show the browser's own", async ({
+  demo,
+}) => {
+  await demo.open("changes");
+  await demo.page.evaluate(() => {
+    const { view } = window.sigil.editor;
+    const doc = view.state.doc.toString();
+    view.dispatch({
+      selection: {
+        anchor: doc.indexOf("She had"),
+        head: doc.indexOf("A paragraph added"),
+      },
+    });
+    view.focus();
+  });
+  const removed = demo.page.locator(".sg-removed-unstaged", {
+    hasText: "deleted since",
+  });
+  const shot = await removed.screenshot();
+  // The browser paints its selection in a saturated blue that no colour of the palette comes near.
+  // Text is antialiased with coloured fringes, so a few blue pixels are allowed, but not a fill.
+  const decoder = await demo.page.context().newPage();
+  const blue = await decoder.evaluate(
+    async (bytes) => {
+      const image = await createImageBitmap(
+        new Blob([new Uint8Array(bytes)], { type: "image/png" }),
+      );
+      const canvas = new OffscreenCanvas(image.width, image.height);
+      const context = canvas.getContext(
+        "2d",
+      ) as OffscreenCanvasRenderingContext2D;
+      context.drawImage(image, 0, 0);
+      const { data } = context.getImageData(0, 0, image.width, image.height);
+      let count = 0;
+      for (let i = 0; i < data.length; i += 4)
+        if ((data[i + 2] as number) - (data[i] as number) > 100) count++;
+      return count / (image.width * image.height);
+    },
+    [...shot],
+  );
+  await decoder.close();
+  expect(blue).toBeLessThan(0.05);
+});
