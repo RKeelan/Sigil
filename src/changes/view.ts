@@ -8,6 +8,7 @@ import {
   StateEffect,
   StateField,
   Text,
+  type Transaction,
 } from "@codemirror/state";
 import {
   Decoration,
@@ -27,9 +28,13 @@ import { measureIn } from "../render/measure.ts";
 import {
   type Block,
   blockKey,
+  blocksAfterStaging,
   buildBlocks,
+  type Hunk,
   indexAfter,
+  type LineChange,
   linesOf,
+  updateBlocks,
 } from "./model.ts";
 
 /** The text a document is compared with, and the line ending the index is written with. */
@@ -49,6 +54,9 @@ export const bases = StateField.define<Bases | null>({
     return value;
   },
 });
+
+/** Goes with the new index when a change is staged, so that the others needn't be worked out again. */
+const stage = StateEffect.define<Block>();
 
 /** Called with the index's new text when a change is staged. */
 const onIndex = Facet.define<(text: string) => void>();
@@ -205,18 +213,47 @@ function touchesTable(state: EditorState, from: number, to: number): boolean {
   return found;
 }
 
+/**
+ * Whether a change can show lines as edits. A table's rows are drawn as a whole, so an edit
+ * inside one would be hidden; the row as it was is shown above the row as it is instead.
+ */
+const canEditIn = (state: EditorState) => (hunk: Hunk) =>
+  !touchesTable(state, hunk.fromB, hunk.toB);
+
+/** Works out every change from the start. */
 function build(state: EditorState): Model | null {
   const base = state.field(bases);
   if (!base) return null;
+  const index = linesOf(base.index);
+  return draw(
+    state,
+    base,
+    buildBlocks(index, linesOf(state.doc), canEditIn(state)),
+  );
+}
+
+/** The lines of the document an edit replaced, and how many lines replaced them. */
+function lineChange(tr: Transaction): LineChange {
+  let fromA = Number.MAX_SAFE_INTEGER;
+  let toA = 0;
+  let toB = 0;
+  tr.changes.iterChangedRanges((from, to, _fromB, endB) => {
+    fromA = Math.min(fromA, from);
+    toA = Math.max(toA, to);
+    toB = Math.max(toB, endB);
+  });
+  const from = tr.startState.doc.lineAt(fromA).number - 1;
+  return {
+    from,
+    to: tr.startState.doc.lineAt(toA).number,
+    length: tr.state.doc.lineAt(toB).number - from,
+  };
+}
+
+/** Draws the changes. */
+function draw(state: EditorState, base: Bases, blocks: Block[]): Model {
   const { doc } = state;
   const index = linesOf(base.index);
-  // A table's rows are drawn as a whole, so an edit inside one would be hidden. The row as it
-  // was is shown above the row as it is instead.
-  const blocks = buildBlocks(
-    index,
-    linesOf(doc),
-    (hunk) => !touchesTable(state, hunk.fromB, hunk.toB),
-  );
   const decorations: Range<Decoration>[] = [];
   const classes: Range<GutterMarker>[] = [];
   const actions: Range<GutterMarker>[] = [];
@@ -289,9 +326,29 @@ function build(state: EditorState): Model | null {
 const model = StateField.define<Model | null>({
   create: build,
   update(value, tr) {
-    if (tr.docChanged || tr.startState.field(bases) !== tr.state.field(bases))
+    const base = tr.state.field(bases);
+    if (!value || !base || base !== tr.startState.field(bases)) {
+      const staged = tr.effects.find((effect) => effect.is(stage));
+      if (value && base && staged && !tr.docChanged)
+        return draw(
+          tr.state,
+          base,
+          blocksAfterStaging(value.blocks, staged.value),
+        );
       return build(tr.state);
-    return value;
+    }
+    if (!tr.docChanged) return value;
+    return draw(
+      tr.state,
+      base,
+      updateBlocks(
+        value.blocks,
+        linesOf(base.index),
+        linesOf(tr.state.doc),
+        lineChange(tr),
+        canEditIn(tr.state),
+      ),
+    );
   },
   provide: (field) => [
     EditorView.decorations.from(
@@ -317,7 +374,9 @@ function act(view: EditorView, key: string) {
   const block = shownChanges(state).find((b) => blockKey(b) === key);
   if (!base || !block) return;
   const lines = indexAfter(block, linesOf(base.index), linesOf(state.doc));
-  view.dispatch({ effects: setBases.of({ ...base, index: Text.of(lines) }) });
+  view.dispatch({
+    effects: [setBases.of({ ...base, index: Text.of(lines) }), stage.of(block)],
+  });
   const text = lines.join(base.indexEol);
   for (const notify of state.facet(onIndex)) notify(text);
 }

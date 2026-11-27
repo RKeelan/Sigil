@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { blockKey } from "./changes/model.ts";
+import { type Block, blockKey } from "./changes/model.ts";
 import { applyChange, shownChanges } from "./changes/view.ts";
 import { type Host, type Options, Sigil } from "./editor.ts";
 import { foldedFrontMatter } from "./frontmatter.ts";
@@ -359,6 +359,23 @@ describe("changes", () => {
     expect(removed?.textContent).toBe("2gone entirely");
     expect(count(sigil, ".sg-edited")).toBe(1);
     expect(count(sigil, ".sg-actions .sg-action")).toBe(1);
+  });
+
+  test("works out again only the changes an edit or a staging touches", () => {
+    const sigil = open("A\n\nb\n\nC\n\nD");
+    sigil.setChanges({ index: "a\n\nb\n\nc\n\nd" });
+    const before = shownChanges(sigil.view.state);
+    expect(before.length).toBe(3);
+    const line = sigil.view.state.doc.line(5);
+    sigil.view.dispatch({ changes: { from: line.from, insert: "C" } });
+    const typed = shownChanges(sigil.view.state);
+    expect(typed[0]).toBe(before[0] as Block);
+    expect(typed[2]).toBe(before[2] as Block);
+    expect(sigil.view.state.doc.line(5).text).toBe("CC");
+    applyChange(sigil.view, blockKey(typed[1] as Block));
+    const staged = shownChanges(sigil.view.state);
+    expect(staged).toEqual([typed[0] as Block, typed[2] as Block]);
+    expect(staged[0]).toBe(typed[0] as Block);
   });
 
   test("draws an edit to a table row as the old row above the new", () => {
