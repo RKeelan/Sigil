@@ -22,6 +22,7 @@ import {
 import { keepFrontMatterOpen } from "../frontmatter.ts";
 import { frontMatterEnd, loadGrammars, parseText } from "../markdown/parser.ts";
 import { renderLines } from "../render/dom.ts";
+import { keepLineShown } from "../render/hidden.ts";
 import { measureIn } from "../render/measure.ts";
 import {
   type Block,
@@ -384,6 +385,20 @@ function touchesFrontMatter(state: EditorState): boolean {
 }
 
 /**
+ * Whether a change puts in the line with the given number, counted from one, or takes out lines
+ * next to it. A line of syntax that is usually hidden is then kept in view, so that the change
+ * can be read in place.
+ */
+function touchesLine(state: EditorState, number: number): boolean {
+  const line = number - 1;
+  return shownChanges(state).some(
+    (block) =>
+      block.added.some((run) => run.from <= line && line < run.to) ||
+      (block.removed !== null && (block.at === line || block.at === line + 1)),
+  );
+}
+
+/**
  * Shows the document's uncommitted changes in place: unstaged changes, which are between the
  * index and the document, and staged ones, which are between HEAD and the index, each with a
  * button that stages or unstages it.
@@ -393,6 +408,7 @@ export function changesView(setIndex: (text: string) => void): Extension {
     model,
     onIndex.of(setIndex),
     keepFrontMatterOpen.of(touchesFrontMatter),
+    keepLineShown.of(touchesLine),
     gutterWidgetClass.of((_view, widget) =>
       widget instanceof RemovedLines ? removedGutterClass[widget.kind] : null,
     ),

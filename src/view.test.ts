@@ -65,6 +65,34 @@ describe("live preview", () => {
     ]);
   });
 
+  test("leaves out lines of syntax until the cursor is in their construct", () => {
+    const sigil = open("intro\n\nTitle\n===\n\n```\ncode\n```\n\nend");
+    expect(drawn(sigil)).toEqual(["intro", "", "Title", "", "code", "", "end"]);
+    sigil.view.dispatch({ selection: { anchor: 9 } });
+    expect(drawn(sigil)).toEqual([
+      "intro",
+      "",
+      "Title",
+      "===",
+      "",
+      "code",
+      "",
+      "end",
+    ]);
+    sigil.view.dispatch({ selection: { anchor: 25 } });
+    expect(drawn(sigil)).toEqual([
+      "intro",
+      "",
+      "Title",
+      "",
+      "```",
+      "code",
+      "```",
+      "",
+      "end",
+    ]);
+  });
+
   test("ticks a task when its box is clicked", () => {
     const sigil = open("intro\n\n- [ ] task");
     mousedown(sigil.view.contentDOM.querySelector(".sg-task"));
@@ -218,6 +246,14 @@ describe("line numbers", () => {
     expect(numbers(open("a\nb\nc"))).toEqual(["000", "1", "2", "3"]);
   });
 
+  test("skip the lines of syntax that are left out", () => {
+    const sigil = open("Title\n===\n\n```\ncode\n```\nend");
+    sigil.view.dispatch({ selection: { anchor: sigil.view.state.doc.length } });
+    expect(numbers(sigil).slice(1)).toEqual(["1", "3", "5", "7"]);
+    sigil.view.dispatch({ selection: { anchor: 20 } });
+    expect(numbers(sigil).slice(1)).toEqual(["1", "3", "4", "5", "6", "7"]);
+  });
+
   test("widen for a longer number and never narrow", () => {
     const sigil = open("a");
     sigil.setText(`${"x\n".repeat(999)}x`);
@@ -237,7 +273,6 @@ describe("line numbers", () => {
       "sg-number sg-number-h2",
       "sg-number",
       "sg-number sg-number-h1",
-      "sg-number",
       "sg-number",
       "sg-number sg-number-h1",
     ]);
@@ -362,6 +397,23 @@ describe("changes", () => {
     expect(content.querySelector(".sg-removed-staged")?.textContent).toBe(
       "2two",
     );
+  });
+
+  test("keeps a line of syntax in view while a change to it is waiting", () => {
+    const source = "```js\nlet x;\n```\n\nend";
+    const sigil = open(source);
+    sigil.view.dispatch({ selection: { anchor: source.length } });
+    expect(drawn(sigil)).toEqual(["js", "let x;", "", "end"]);
+    sigil.setChanges({
+      index: source.replace("\n```\n", "\n~~~\n"),
+      head: source,
+    });
+    // The fence's row is back, marked as changed, with its syntax hidden as usual.
+    expect(drawn(sigil)).toEqual(["js", "let x;", "", "", "end"]);
+    const fence = sigil.view.contentDOM.querySelector(".cm-line.sg-code-last");
+    expect(fence?.className).toMatch(/-unstaged/);
+    sigil.setChanges({ index: source, head: source });
+    expect(drawn(sigil)).toEqual(["js", "let x;", "", "end"]);
   });
 
   test("keeps the front matter open while a change in it is waiting", () => {
