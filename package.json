@@ -1,6 +1,6 @@
 {
   "name": "sigil",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A live-preview Markdown editor component built on CodeMirror 6",
   "type": "module",
   "license": "MIT",
