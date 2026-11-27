@@ -28,7 +28,9 @@ The component knows nothing about its host. Its first host is a VS Code extensio
 ## Typography
 
 * Markdown is set in a proportional serif, Source Serif 4, with code spans and fences in IBM Plex Mono at 0.9 of the text's size, so the two look the same size. Both are under the SIL Open Font License.
-* Text wraps at the width of the view. Tab stops are four spaces apart.
+* Text is set in a column 90 characters wide by default, the upper end of the 45 to 90 characters that Butterick's *Practical Typography* recommends. Bringhurst's *The Elements of Typographic Style* sets a narrower range, 45 to 75, with 66 as ideal. A measure setting changes the width, or turns the column off so that text wraps at the width of the view. The setting counts characters of English prose, spaces included, which in Source Serif 4 average 0.48 of the font's size. CSS's `ch` unit is the width of a zero, which is wider than that, so the component works the width out in `em` instead.
+* The column, with the gutters beside it, is centred in the view, and the scroller still fills the view, so its scroll bar stays at the view's edge. Code blocks, tables and images keep to the column.
+* Tab stops are four spaces apart.
 
 ## Keys
 
@@ -91,6 +93,7 @@ The repository holds a demo page: a plain web page that hosts the component in a
 
 * It loads sample documents chosen to exercise the hard cases: tables, nested lists, fences, front matter, long lines and a long manuscript.
 * Its spell-checker is a stub with a fixed word list.
+* Its Line length control offers measures from 45 to 90 characters, and the full width of the view.
 * It holds the index in memory, and has an Unstage all button that puts `HEAD`'s text back in the index, standing in for a host's own way of unstaging.
 * Its host never says whether it is light or dark, so the System theme follows the browser's `prefers-color-scheme`. The page's own colours are the editor's, and follow the same setting.
 * It exposes the editor and the document's text on `window`, so a test, or an agent driving a browser, can type into the page and then check the source text byte for byte.

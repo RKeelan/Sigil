@@ -84,10 +84,11 @@ describe("edits", () => {
 });
 
 describe("settings", () => {
-  test("default to the system theme, line numbers, line reveal and changes", () => {
+  test("default to the system theme, line numbers, a 90-character measure, line reveal and changes", () => {
     expect(open("text").settings).toEqual({
       theme: "system",
       lineNumbers: true,
+      measure: 90,
       reveal: "line",
       showChanges: true,
       snippets: [],

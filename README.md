@@ -30,6 +30,7 @@ const editor = new Sigil({
   settings: {
     theme: "system",
     lineNumbers: true,
+    measure: 90, // characters a line, or null to fill the view
     reveal: "line", // or "construct"
     showChanges: true,
   },

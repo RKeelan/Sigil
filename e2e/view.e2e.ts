@@ -69,6 +69,82 @@ test("the Reveal control switches between lines and constructs", async ({
   await expect(line).toHaveText("some **bold** and *more* here");
 });
 
+/** The number of characters in each row of a wrapped line, its last row left out. */
+function rowLengths(page: Page, text: string) {
+  return page.evaluate((text) => {
+    const line = [...document.querySelectorAll(".cm-content > .cm-line")].find(
+      (element) => element.textContent?.includes(text),
+    );
+    if (!line) return [];
+    const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+    const range = document.createRange();
+    const rows: number[] = [];
+    let top: number | null = null;
+    let length = 0;
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      for (let i = 0; i < (node as Text).length; i++) {
+        range.setStart(node, i);
+        range.setEnd(node, i + 1);
+        const y = range.getBoundingClientRect().top;
+        top ??= y;
+        if (y > top + 3) {
+          rows.push(length);
+          top = y;
+          length = 0;
+        }
+        length++;
+      }
+    }
+    return rows;
+  }, text);
+}
+
+test("text is set at 90 characters a line, centred in the view", async ({
+  demo,
+}) => {
+  await demo.open("long-lines");
+  const rows = await rowLengths(demo.page, "A paragraph is usually");
+  expect(rows.length).toBeGreaterThan(1);
+  const mean = rows.reduce((sum, n) => sum + n, 0) / rows.length;
+  expect(mean).toBeGreaterThan(84);
+  expect(mean).toBeLessThan(96);
+  // The column, gutters included, has as much room on its left as on its right, leaving out any
+  // scroll bar, and the scroller still fills the view.
+  const { width, inner, left, right } = await demo.page.evaluate(() => {
+    const view = document.querySelector(".cm-scroller") as HTMLElement;
+    const gutter = document.querySelector(".cm-gutters-before") as HTMLElement;
+    // The gutter of Stage buttons follows the text, when there is one.
+    const last = (document.querySelector(".cm-gutters-after") ??
+      document.querySelector(".cm-content")) as HTMLElement;
+    const box = view.getBoundingClientRect();
+    return {
+      width: box.width,
+      inner: innerWidth,
+      left: gutter.getBoundingClientRect().left - box.left,
+      right: box.left + view.clientWidth - last.getBoundingClientRect().right,
+    };
+  });
+  expect(width).toBe(inner);
+  expect(left).toBeGreaterThan(0);
+  expect(Math.abs(left - right)).toBeLessThan(2);
+});
+
+test("the Line length control sets the measure, or lets the text fill the view", async ({
+  demo,
+}) => {
+  await demo.open("long-lines");
+  const length = demo.page.getByRole("combobox", { name: "Line length" });
+  const mean = async () => {
+    const rows = await rowLengths(demo.page, "A paragraph is usually");
+    return rows.reduce((sum, n) => sum + n, 0) / rows.length;
+  };
+  await length.selectOption("45 characters");
+  await expect.poll(mean).toBeLessThan(50);
+  await length.selectOption("Full width");
+  const gutter = await demo.page.locator(".cm-gutters-before").boundingBox();
+  expect(gutter?.x).toBe(0);
+});
+
 /**
  * For each drawn line, where its number's middle is, measured from the top and middle of the
  * line. `numbers` gives the number of each drawn line, which is its position unless lines are
