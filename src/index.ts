@@ -13,4 +13,4 @@ export type { Misspelling } from "./spell.ts";
 export { mono, type Palette, serif } from "./theme.ts";
 
 /** The version of Sigil, kept in step with package.json. */
-export const version = "0.0.0";
+export const version = "0.1.0";
