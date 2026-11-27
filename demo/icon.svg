@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <title>Sigil</title>
+  <!-- A pilcrow on a tile, in the editor's heading colour on light pages and dark ones. -->
+  <style>
+    .tile { fill: #004674; }
+    .mark { fill: #f9f5ec; }
+    @media (prefers-color-scheme: dark) {
+      .tile { fill: #d1ab76; }
+      .mark { fill: #1f1f1f; }
+    }
+  </style>
+  <rect class="tile" width="32" height="32" rx="7" />
+  <path class="mark" d="M24 6v20h-4V10h-2v16h-4V18a6 6 0 0 1 0-12z" />
+</svg>

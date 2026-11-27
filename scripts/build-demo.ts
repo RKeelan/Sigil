@@ -1,8 +1,8 @@
 /**
- * Builds the demo site: the page, its script, its styles and its fonts. The script is split into
- * modules, so that each language's grammar is a file of its own, fetched when a fence first names
- * the language. `buildDemo` builds the site in memory; run as a script, this writes it to
- * `dist/demo`, which is what GitHub Pages publishes.
+ * Builds the demo site: the page, its script, its styles, its fonts and its icon. The script is
+ * split into modules, so that each language's grammar is a file of its own, fetched when a fence
+ * first names the language. `buildDemo` builds the site in memory; run as a script, this writes
+ * it to `dist/demo`, which is what GitHub Pages publishes.
  */
 import { mkdir, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -75,6 +75,8 @@ export async function buildDemo(): Promise<Site> {
     ),
   );
   const notice = `<!--\nThis site serves fonts under the following licences.\n\n${licences.join("\n\n")}\n-->`;
+
+  site.set("icon.svg", Bun.file(join(root, "demo", "icon.svg")));
 
   const template = await Bun.file(join(root, "demo", "index.html")).text();
   const page = `${template.replaceAll("{{nonce}}", nonce).trimEnd()}\n${notice}\n`;
