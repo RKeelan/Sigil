@@ -57,6 +57,14 @@ describe("inline syntax", () => {
     ]);
   });
 
+  test("a note is highlighted, and only its closing $ hidden", () => {
+    expect(pieces("a $A b$")).toEqual(["mark 2-7 sg-note", "hide 6-7"]);
+    expect(pieces("a $A b$", everything)).toEqual([
+      "mark 2-7 sg-note",
+      "mark 6-7 sg-syntax",
+    ]);
+  });
+
   test("is muted where it is shown", () => {
     expect(pieces("a *b*", everything)).toEqual([
       "mark 2-5 sg-em",

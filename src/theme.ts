@@ -27,6 +27,7 @@ const palettes: Record<Palette, Record<string, string>> = {
     "--sg-faint": "#7a6d61",
     "--sg-rule": "#dcd0bb",
     "--sg-code-bg": "#e9e0cc",
+    "--sg-note": "#e8cf9c",
     "--sg-link": "#255a8a",
     "--sg-selection": "#c8d1e0",
     "--sg-misspelt": "#c8372d",
@@ -53,6 +54,7 @@ const palettes: Record<Palette, Record<string, string>> = {
     "--sg-faint": "#6e6e6e",
     "--sg-rule": "#3d3d3d",
     "--sg-code-bg": "#2b2b2b",
+    "--sg-note": "#5a4a1c",
     "--sg-link": "#d1ab76",
     "--sg-selection": "#645745",
     "--sg-misspelt": "#ee6b5f",
@@ -121,11 +123,12 @@ const styles = EditorView.theme({
     backgroundColor: "var(--sg-selection)",
   },
 
-  // The backgrounds of code blocks, code spans and changes, drawn in a layer below the selection
-  // (see render/backgrounds.ts). Additions are green and removals red. Only unstaged changes are
+  // The backgrounds of code blocks, code spans, notes and changes, drawn in a layer below the
+  // selection (see render/backgrounds.ts). Additions are green and removals red. Only unstaged changes are
   // shown; a staged change looks like the text around it.
   ".sg-bg-code": { backgroundColor: "var(--sg-code-bg)" },
   ".sg-bg-code-span": { borderRadius: "3px" },
+  ".sg-bg-note": { backgroundColor: "var(--sg-note)" },
   ".sg-bg-added": { backgroundColor: "var(--sg-added)" },
   ".sg-bg-removed": { backgroundColor: "var(--sg-removed)" },
   ".sg-bg-added-text": { backgroundColor: "var(--sg-added-text)" },

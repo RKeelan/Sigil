@@ -6,6 +6,8 @@ Sigil is a *live-preview* Markdown editor: one pane, formatting rendered **in pl
 
 Text can be *emphasised*, **strong**, ***both***, ~~struck through~~, or set as `code`. A link looks like [CodeMirror](https://codemirror.net/ "The editor Sigil is built on"), a bare address like https://example.com is linked too, and so is <https://example.org>. A bracketed phrase [sic] that isn't a link is left alone.
 
+A note is highlighted: $Editor check this$. A price such as $20 is not. $Editor A note without a closing dollar sign runs to the end of its paragraph.
+
 Escapes work: \*not emphasis\*, and so do entities: &copy; &amp; &mdash;.
 
 A line that ends with two spaces  
