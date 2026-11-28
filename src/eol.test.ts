@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { joinLines, offsetIn, splitLines } from "./eol.ts";
+import { joinLines, offsetIn, positionIn, splitLines } from "./eol.ts";
 
 test("a text is split into lines and its line ending kept", () => {
   const unix = splitLines("a\nb\n");
@@ -30,4 +30,13 @@ test("a position counts each line break before it at its full length", () => {
   expect(offsetIn(text, 3, "\r\n")).toBe(4);
   expect(offsetIn(text, 8, "\r\n")).toBe(10);
   expect(offsetIn(text, 8, "\n")).toBe(8);
+});
+
+test("an offset into the text is found in the editor's text", () => {
+  const { text } = splitLines("ab\r\ncd\r\nef");
+  for (const pos of [0, 2, 3, 5, 6, 8])
+    expect(positionIn(text, offsetIn(text, pos, "\r\n"), "\r\n")).toBe(pos);
+  // Between the \r and the \n of the first break.
+  expect(positionIn(text, 3, "\r\n")).toBe(2);
+  expect(positionIn(text, 5, "\n")).toBe(5);
 });

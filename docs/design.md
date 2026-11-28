@@ -38,7 +38,8 @@ The component knows nothing about its host. Its first host is a VS Code extensio
 * Enter continues a list item or quote: the same bullet, the next number, an open task, with the item's indentation and `>` marks. Enter on an empty item outdents it, or removes its marker if it isn't indented. Items are never renumbered.
 * Tab right after a list item's marker nests the item under its previous sibling, at that sibling's content column; Shift+Tab outdents it. A selection across lines nests or outdents every item in it. Elsewhere, Tab types a tab.
 * Open line (Ctrl+Shift+Enter) breaks the line at the cursor and leaves the cursor before the break, as Emacs's C-o does.
-* Undo groups typing by word and the whitespace after it, not by time, and puts the cursor back where it was before the step.
+* Undo groups typing by word and the whitespace after it, not by time, and puts the cursor back where it was before the step. Undo is Ctrl+Z, and redo is Ctrl+Y or Ctrl+Shift+Z. They belong to the editor even when there is nothing to undo or redo, so that a host never undoes the document as well.
+* A key the editor handles goes no further than the editor, so a host that watches for keys on the page acts only on the keys the editor leaves alone.
 * Snippets: a trigger typed before the cursor offers a snippet's text in its place. A snippet can mark where the cursor goes and where today's date goes, and can be limited to the start of a line.
 * Other editing keys come from CodeMirror's default keymap, which follows VS Code's for most of them, such as Alt+Up to move a line and Ctrl+D to select the next occurrence.
 
@@ -71,10 +72,21 @@ Plain text has no syntax, so a cursor in a plain word reveals nothing.
 
 The host supplies everything outside the editor:
 
-* Document sync: the host sends the initial text and outside changes, and the component reports each edit.
+* Document sync: the host sends the initial text and outside changes, and the component reports each edit (see Document sync).
 * Spell-checking: the host is given text and returns misspelled ranges, and is told when the user adds a word.
 * Theme: the host says whether it is light or dark, which System follows. A host that says nothing leaves System to the page's `prefers-color-scheme`.
 * Changes: the host supplies the index text, and is given the new index text when the user stages a change. Unstaging is the host's to offer; it supplies the new index text afterwards.
+
+## Document sync
+
+The host owns the document, and the editor's text is a copy of it. Edits and outside changes travel as messages, so they can cross: the user can type while a change made elsewhere, such as an undo in the host or another program writing the file, is on its way. Each side applies the other's changes to text that has moved on, and without a way to tell, an edit lands a few characters from where it was made, and the two copies drift further apart with each edit after it.
+
+* The host's text has a version, which goes up by one with each change to it, whoever made it.
+* The editor sends each edit with the latest version it has heard of, from an outside change or from the host confirming one of its edits. The edit's offsets allow for the editor's earlier edits that the host hasn't confirmed yet.
+* The host applies an edit only if nothing but the editor has changed its text since that version, and confirms each edit it applies. It ignores any other edit.
+* The host sends an outside change as the change it made, with its version, rather than as the whole text. The editor fits it in around its unconfirmed edits, the way CodeMirror's collaborative editing does, and sends those edits again with the new version. Where both put text at the same place, the outside change's comes first.
+* An outside change moves the undo history along with the text, so undo still undoes the user's own edits where they now are.
+* A host that falls out of step, or can't say what changed, sends the whole text with its version. The editor takes it as it is, and drops the edits the host hasn't confirmed.
 
 ## Changes and staging
 
@@ -110,7 +122,7 @@ The VS Code extension is a thin wrapper: a `CustomTextEditorProvider` that shows
 
 * Editor extensions, such as Code Spell Checker, don't apply inside the webview, so the extension provides spell-checking.
 * Keys reach the page first. VS Code's webviews pass on the keys a page doesn't handle, so workbench shortcuts (the command palette, Quick Open, the terminal, switching tabs, saving) keep working. Shortcuts bound to VS Code's text editor don't, and the component's keymap provides them instead. Shortcuts the user has customised in VS Code don't carry over, because VS Code has no API that exposes them.
-* VS Code owns the document's undo stack, and CodeMirror has its own; one of them has to defer to the other.
+* VS Code owns the document, and has an undo stack of its own. The editor's undo keys stop at the editor, so they undo by the editor's steps; Undo in VS Code's Edit menu undoes the document by VS Code's, and reaches the editor as an outside change.
 * Since VS Code 1.129, a custom editor registered with `"priority": "default"` stays out of diff and merge views unless it opts in ([issue #324791](https://github.com/microsoft/vscode/issues/324791)). The extension requires 1.129 or later and doesn't opt in, so VS Code's own diff view, merge editor and text editor stay available for Markdown files.
 * VS Code's Git extension has no public API for staging part of a file, so the extension runs `git` itself. It watches `.git/index` and `HEAD` so that staging done elsewhere reaches the view.
 * Spell-checking runs `cspell-lib`, the engine Code Spell Checker is built on, in the extension host. It reads `cspell.json` files itself, and the extension passes in VS Code's `cSpell.*` settings (`cSpell.language`, `cSpell.import`, `cSpell.customDictionaries` with `${workspaceFolder}` resolved, `cSpell.userWords`) as overrides. "Add to dictionary" writes where Code Spell Checker would, so a word added in either editor is known to both.
@@ -121,7 +133,6 @@ The VS Code extension is a thin wrapper: a `CustomTextEditorProvider` that shows
 
 * Whether `cspell-lib`, used directly, resolves URL imports the way Code Spell Checker does.
 * Whether Code Spell Checker exposes an API another extension can call, which would avoid bundling a second copy of the engine.
-* Which undo stack wins, and how to keep the other consistent with it.
 * How the component renders tables, images and code blocks, and what editing a table looks like.
 * Performance on long documents, such as a novel manuscript in one file.
 * Whether staging a change in a document with unsaved edits stages the edited text, as VS Code's own staging of selected ranges does, or requires a save first.

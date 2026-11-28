@@ -1,5 +1,6 @@
 import { indentUnit } from "@codemirror/language";
 import {
+  ChangeSet,
   Compartment,
   EditorState,
   type Extension,
@@ -7,7 +8,7 @@ import {
 } from "@codemirror/state";
 import { drawSelection, EditorView } from "@codemirror/view";
 import { bases, changesView, setBases } from "./changes/view.ts";
-import { joinLines, offsetIn, splitLines } from "./eol.ts";
+import { joinLines, offsetIn, positionIn, splitLines } from "./eol.ts";
 import { frontMatterFold, initialCursor } from "./frontmatter.ts";
 import { lineNumbers } from "./gutter.ts";
 import { editingKeys } from "./keys/keymap.ts";
@@ -20,6 +21,7 @@ import {
 } from "./render/preview.ts";
 import { type Snippet, snippets } from "./snippets.ts";
 import { type Misspelling, spellCheck } from "./spell.ts";
+import { Sync, type Unconfirmed } from "./sync.ts";
 import {
   baseTheme,
   measureTheme,
@@ -40,10 +42,15 @@ export interface TextChange {
  */
 export interface Host {
   /**
-   * Called with each edit the user makes. The changes are offsets into the document's text as
-   * it was before the edit, and none of them overlap.
+   * Called with each edit the user makes, and `version`, the version of the host's text that the
+   * editor knew of when the user made it. The changes are offsets into the host's text with the
+   * editor's earlier edits applied, and none of them overlap. The host applies an edit only if
+   * nothing but the editor has changed its text since `version`, and then calls
+   * `Sigil.confirmEdit` with the version the edit made. It ignores any other edit: the editor
+   * sends it again, with a newer version, once the host has told it of the change that came
+   * first.
    */
-  edit?(changes: readonly TextChange[]): void;
+  edit?(changes: readonly TextChange[], version: number): void;
   /** Checks the spelling of a piece of text, returning the misspelled ranges within it. */
   checkSpelling?(text: string): Promise<readonly Misspelling[]>;
   /** Called when the user adds a word to the dictionary. */
@@ -85,6 +92,11 @@ export interface Options {
   parent: Element;
   /** The document's text. */
   text?: string;
+  /**
+   * The version of the host's text that `text` is. The host's version goes up by one with each
+   * change to its text, whether the editor made the change or something else did.
+   */
+  version?: number;
   host?: Host;
   settings?: Partial<Settings>;
   /** Whether the host is light or dark, which the System theme follows. */
@@ -111,6 +123,7 @@ export class Sigil {
   private current: Settings;
   private hostTheme: Palette | null;
   private eol: string;
+  private readonly sync: Sync;
   private hasBases = false;
   private readonly host: Host;
   private readonly now: () => Date;
@@ -135,6 +148,7 @@ export class Sigil {
 
     const { text, eol } = splitLines(options.text ?? "");
     this.eol = eol;
+    this.sync = new Sync(text, options.version ?? 0);
     const extensions: Extension[] = [
       markdownLanguage,
       EditorState.tabSize.of(4),
@@ -172,7 +186,7 @@ export class Sigil {
       extensions.push(spelling.extension);
       this.recheck = spelling.recheck;
     }
-    let state = EditorState.create({ doc: text, extensions });
+    let state = EditorState.create({ doc: this.sync.doc, extensions });
     state = state.update({ selection: { anchor: initialCursor(state) } }).state;
     this.view = new EditorView({ state, parent: options.parent });
   }
@@ -182,14 +196,21 @@ export class Sigil {
     return joinLines(this.view.state.doc, this.eol);
   }
 
+  /** The version of the host's text that the editor knows of. */
+  get version(): number {
+    return this.sync.version;
+  }
+
   /**
-   * Replaces the document's text with text changed outside the editor. Only the part that
-   * differs is replaced, so the cursor and undo history survive, and the change is not reported
-   * back to the host.
+   * Replaces the document's text with the host's text at `version`, dropping any edits the host
+   * hasn't confirmed. Only the part that differs is replaced, so the cursor and undo history
+   * survive, and the change is not reported back to the host. A host that can say what changed
+   * calls `applyEdit` instead, which keeps the user's unconfirmed edits.
    */
-  setText(source: string) {
+  setText(source: string, version = this.sync.version) {
     const { text, eol } = splitLines(source);
     this.eol = eol;
+    this.sync.reset(text, version);
     const before = this.view.state.doc.toString();
     const after = text.toString();
     if (before === after) return;
@@ -213,6 +234,44 @@ export class Sigil {
         Transaction.addToHistory.of(false),
       ],
     });
+  }
+
+  /**
+   * Applies a change to the host's text made outside the editor, which made it `version`. The
+   * changes are offsets into the host's text at the version before, and none of them overlap.
+   * The user's edits that the host hasn't confirmed are kept, and sent to the host again, made to
+   * `version`. Returns false, and changes nothing, if `version` isn't the one after the
+   * editor's; the host then calls `setText` to start again from its text.
+   */
+  applyEdit(changes: readonly TextChange[], version: number): boolean {
+    const doc = this.sync.doc;
+    const outside = ChangeSet.of(
+      changes.map((change) => ({
+        from: positionIn(doc, change.from, this.eol),
+        to: positionIn(doc, change.to, this.eol),
+        insert: splitLines(change.insert).text,
+      })),
+      doc.length,
+    );
+    const result = this.sync.remote(outside, version);
+    if (!result) return false;
+    this.view.dispatch({
+      changes: result.changes,
+      annotations: [
+        Transaction.remote.of(true),
+        Transaction.addToHistory.of(false),
+      ],
+    });
+    for (const edit of result.resend) this.send(edit);
+    return true;
+  }
+
+  /**
+   * Tells the editor that the host has applied the oldest edit it was sent, which made its text
+   * `version`. Returns false if the editor wasn't waiting for that version.
+   */
+  confirmEdit(version: number): boolean {
+    return this.sync.confirm(version);
   }
 
   get settings(): Settings {
@@ -305,17 +364,19 @@ export class Sigil {
   /** Tells the host about an edit, unless the edit came from the host. */
   private report(tr: Transaction) {
     if (!tr.docChanged || tr.annotation(Transaction.remote)) return;
-    const { edit } = this.host;
-    if (!edit) return;
-    const before = tr.startState.doc;
+    if (!this.host.edit) return;
+    this.send(this.sync.local(tr.changes));
+  }
+
+  private send({ changes: set, doc, version }: Unconfirmed) {
     const changes: TextChange[] = [];
-    tr.changes.iterChanges((from, to, _fromB, _toB, inserted) => {
+    set.iterChanges((from, to, _fromB, _toB, inserted) => {
       changes.push({
-        from: offsetIn(before, from, this.eol),
-        to: offsetIn(before, to, this.eol),
+        from: offsetIn(doc, from, this.eol),
+        to: offsetIn(doc, to, this.eol),
         insert: joinLines(inserted, this.eol),
       });
     });
-    edit.call(this.host, changes);
+    this.host.edit?.(changes, version);
   }
 }
