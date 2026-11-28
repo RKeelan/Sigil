@@ -15,6 +15,7 @@ import {
   parseCode,
 } from "@lezer/markdown";
 import { fenceLanguage, fenceName } from "./languages.ts";
+import { notes } from "./notes.ts";
 
 const fenceLine = /^>>>[ \t]*$/;
 
@@ -100,15 +101,21 @@ const fencedCode = parseCode({ codeParser });
  * Markdown in a fenced block. It is a parser of its own so that its tree's top node differs
  * from the document's, which is how its highlighting is told apart from the document's syntax.
  */
-const fencedMarkdown = commonmark.configure([GFM, fencedQuote, fencedCode]);
+const fencedMarkdown = commonmark.configure([
+  GFM,
+  fencedQuote,
+  notes,
+  fencedCode,
+]);
 
 /**
- * The Markdown parser: CommonMark with GitHub's extensions and fenced quotes, and the code in
- * fenced blocks parsed in its own language.
+ * The Markdown parser: CommonMark with GitHub's extensions, fenced quotes and notes, and the code
+ * in fenced blocks parsed in its own language.
  */
 export const markdownParser = commonmark.configure([
   GFM,
   fencedQuote,
+  notes,
   fencedCode,
   { props: [languageDataProp.add({ Document: data })] },
 ]);

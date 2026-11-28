@@ -336,6 +336,15 @@ function inline(
     case "InlineCode":
       out.push(mark(node, "sg-code"));
       return;
+    case "Note":
+      out.push(mark(node, "sg-note"));
+      return;
+    case "NoteMark":
+      // The opening `$` stays in view as part of the note's name. The closing one belongs to
+      // the note.
+      if (node.from !== node.node.parent?.from)
+        syntax(node, shown(node.node.parent ?? undefined), out);
+      return false;
     case "EmphasisMark":
     case "StrikethroughMark":
     case "CodeMark":

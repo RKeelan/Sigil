@@ -462,3 +462,30 @@ test("the manuscript opens, scrolls and takes typing", async ({ demo }) => {
   expect((await demo.text()).endsWith("The end of it all.")).toBe(true);
   await expect(demo.line("The end of it all.")).toBeVisible();
 });
+
+test("a note is highlighted, and its closing $ hidden off the cursor's line", async ({
+  demo,
+}) => {
+  await demo.open("basics");
+  await demo.setText("Intro\n\nA $Ed check this$ now\n", 0);
+  const note = demo.page.locator(".sg-note");
+  await expect(note).toHaveText("$Ed check this");
+  await expect(demo.page.locator(".sg-backgrounds .sg-bg-note")).toHaveCount(1);
+  const highlight = await note.evaluate(() =>
+    getComputedStyle(
+      document.querySelector(".sg-backgrounds .sg-bg-note") as Element,
+    ).getPropertyValue("background-color"),
+  );
+  // The space between two words of the note, where no glyph covers the highlight.
+  const space = await demo.page.evaluate((text) => {
+    const { view } = window.sigil.editor;
+    const pos = view.state.doc.toString().indexOf(text);
+    const left = view.coordsAtPos(pos, 1);
+    const right = view.coordsAtPos(pos + 1, -1);
+    if (!left || !right) throw new Error("The note isn't drawn.");
+    return { x: (left.left + right.left) / 2, y: (left.top + left.bottom) / 2 };
+  }, " this");
+  expect(await demo.colourAt(space.x, space.y)).toBe(highlight);
+  await demo.cursorAfter("check");
+  await expect(note).toHaveText("$Ed check this$");
+});

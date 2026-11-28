@@ -13,6 +13,7 @@ const rules: readonly [selector: string, cls: string][] = [
   [".sg-deleted", "sg-bg-removed-text"],
   [".sg-code-line", "sg-bg-code"],
   [".sg-code", "sg-bg-code sg-bg-code-span"],
+  [".sg-note", "sg-bg-note"],
 ];
 
 const all = rules.map(([selector]) => selector).join(", ");
@@ -46,9 +47,9 @@ export function markers(view: EditorView): RectangleMarker[] {
 }
 
 /**
- * Draws the backgrounds of code blocks, code spans and changes in a layer below the selection's.
- * As backgrounds of the text's own elements, they would be painted over the selection, which is
- * drawn behind the text, and hide it.
+ * Draws the backgrounds of code blocks, code spans, notes and changes in a layer below the
+ * selection's. As backgrounds of the text's own elements, they would be painted over the
+ * selection, which is drawn behind the text, and hide it.
  */
 export function backgrounds(): Extension {
   // A layer below the text is stacked under the layers below the text that come before it, so
