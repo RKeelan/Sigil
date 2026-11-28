@@ -28,6 +28,9 @@ for (const name of ["basics", "lists", "tables", "code", "front-matter"]) {
       [{ from: at, to: at, insert: "Z" }],
       [{ from: at + 1, to: at + 1, insert: "q" }],
     ]);
+    expect(await demo.page.evaluate(() => window.sigil.file)).toBe(
+      await demo.text(),
+    );
   });
 }
 
@@ -55,10 +58,57 @@ test("a change from outside replaces the text without being reported", async ({
   await demo.setText("alpha beta gamma");
   await demo.page.evaluate(() => {
     window.sigil.edits.length = 0;
-    window.sigil.editor.setText("alpha BETA gamma");
+    window.sigil.setFile("alpha BETA gamma");
   });
   expect(await demo.text()).toBe("alpha BETA gamma");
   expect(await demo.page.evaluate(() => window.sigil.edits)).toEqual([]);
+});
+
+test("a change from outside keeps what the user has typed", async ({
+  demo,
+}) => {
+  await demo.open("basics");
+  await demo.setText("the cat sat");
+  await demo.page.keyboard.type(" down");
+  await demo.page.evaluate(() =>
+    window.sigil.changeFile([{ from: 4, to: 4, insert: "black " }]),
+  );
+  await demo.page.keyboard.type(" again");
+  expect(await demo.text()).toBe("the black cat sat down again");
+  expect(await demo.page.evaluate(() => window.sigil.file)).toBe(
+    await demo.text(),
+  );
+});
+
+test("undo and redo keys stay in the editor", async ({ demo }) => {
+  await demo.open("basics");
+  await demo.setText("one ");
+  await demo.page.evaluate(() => {
+    const reached: string[] = [];
+    (window as unknown as { reached: string[] }).reached = reached;
+    window.addEventListener("keydown", (event) => {
+      if (event.ctrlKey && event.key.length === 1) reached.push(event.key);
+    });
+  });
+  await demo.page.keyboard.type("two");
+  await demo.page.keyboard.press("Control+z");
+  expect(await demo.text()).toBe("one ");
+  await demo.page.keyboard.press("Control+y");
+  expect(await demo.text()).toBe("one two");
+  await demo.page.keyboard.press("Control+z");
+  await demo.page.keyboard.press("Control+Shift+z");
+  expect(await demo.text()).toBe("one two");
+  // With nothing left to undo, the key still stops at the editor.
+  await demo.page.keyboard.press("Control+z");
+  await demo.page.keyboard.press("Control+z");
+  expect(
+    await demo.page.evaluate(
+      () => (window as unknown as { reached: string[] }).reached,
+    ),
+  ).toEqual([]);
+  expect(await demo.page.evaluate(() => window.sigil.file)).toBe(
+    await demo.text(),
+  );
 });
 
 test("the syntax of the cursor's line is shown, and of no other", async ({

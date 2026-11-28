@@ -52,13 +52,32 @@ let editor: Sigil;
 let index = "";
 let head = "";
 let edits: TextChange[][] = [];
+/** The file the demo's host holds, its version, and the version of its latest outside change. */
+let file = "";
+let version = 0;
+let outside = 0;
+
+/** The file with some changes applied, each an offset into the file before any of them. */
+function applied(text: string, changes: readonly TextChange[]): string {
+  let result = text;
+  for (const change of [...changes].sort((a, b) => b.from - a.from))
+    result =
+      result.slice(0, change.from) + change.insert + result.slice(change.to);
+  return result;
+}
 
 // The demo's host: the things a real host would do with a file system, Git and a dictionary,
 // done in memory. It never calls `setHostTheme`, since a web page has no theme of its own, so the
-// System theme follows the browser's `prefers-color-scheme`.
+// System theme follows the browser's `prefers-color-scheme`. It holds the file as a host such as
+// VS Code does, and answers the editor as a message would, after the editor's update is done.
 const host: Host = {
-  edit(changed) {
+  edit(changed, known) {
     edits.push([...changed]);
+    if (known < outside) return;
+    file = applied(file, changed);
+    version++;
+    const made = version;
+    queueMicrotask(() => editor.confirmEdit(made));
   },
   async checkSpelling(text) {
     const found = [];
@@ -77,6 +96,25 @@ const host: Host = {
     unstage.disabled = index === head;
   },
 };
+
+/** Changes the file from outside the editor, as another program might. */
+function changeFile(changes: TextChange[]) {
+  file = applied(file, changes);
+  version++;
+  outside = version;
+  const made = version;
+  queueMicrotask(() => {
+    if (!editor.applyEdit(changes, made)) editor.setText(file, version);
+  });
+}
+
+/** Replaces the file from outside the editor. */
+function setFile(text: string) {
+  file = text;
+  version++;
+  outside = version;
+  editor.setText(file, version);
+}
 
 /**
  * Puts HEAD's text back in the index, as Unstage All Changes in VS Code's Source Control view
@@ -127,6 +165,9 @@ function load(name: string) {
   if (!sample) return;
   editor?.destroy();
   edits = [];
+  file = sample.text;
+  version = 0;
+  outside = 0;
   head = sample.head ?? sample.text;
   index = sample.index ?? sample.text;
   editor = new Sigil({
@@ -174,6 +215,11 @@ window.sigil = {
   get edits() {
     return edits;
   },
+  get file() {
+    return file;
+  },
+  changeFile,
+  setFile,
   words,
   violations,
   load,

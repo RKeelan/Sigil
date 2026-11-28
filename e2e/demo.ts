@@ -28,7 +28,7 @@ export class DemoPage {
     await this.page.evaluate(
       ([value, at]) => {
         const { editor } = window.sigil;
-        editor.setText(value);
+        window.sigil.setFile(value);
         editor.setChanges({ index: value });
         editor.view.dispatch({ selection: { anchor: at } });
         editor.view.focus();

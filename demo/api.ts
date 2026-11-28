@@ -11,6 +11,15 @@ export interface Demo {
   readonly head: string;
   /** Every edit the editor has reported for the current document. */
   readonly edits: TextChange[][];
+  /**
+   * The file as the demo's host holds it, which the editor's edits are applied to. It matches
+   * `text` once the editor's edits have been confirmed.
+   */
+  readonly file: string;
+  /** Changes the file from outside the editor, as another program might. */
+  changeFile(changes: TextChange[]): void;
+  /** Replaces the file from outside the editor. */
+  setFile(text: string): void;
   /** The words added to the stub dictionary. */
   readonly words: string[];
   /** Violations of the page's content security policy. */

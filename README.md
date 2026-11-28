@@ -16,9 +16,11 @@ import { Sigil } from "sigil";
 const editor = new Sigil({
   parent: document.querySelector("#editor"),
   text: "# Hello\n",
+  version: 0, // the version of the host's text
   host: {
-    // Each edit, as replacements in the text as it was before the edit.
-    edit(changes) {},
+    // Each edit, with the version of the host's text the editor knew of. The host applies it
+    // only if nothing else has changed its text since then, and calls editor.confirmEdit.
+    edit(changes, version) {},
     // The misspelled ranges within a piece of text.
     async checkSpelling(text) {
       return [];
@@ -36,12 +38,13 @@ const editor = new Sigil({
   },
 });
 
-editor.setText(text); // the document changed outside the editor
+editor.applyEdit(changes, version); // the host's text changed outside the editor
+editor.setText(text, version); // or start again from the host's text
 editor.setChanges({ index }); // the index text to show unstaged changes against
 editor.setHostTheme("dark"); // what the System theme follows
 ```
 
-Every member of `host` is optional, and a host that leaves one out goes without what it provides. The editor shows the changes between the index and the document, each with a Stage button. A staged change is in the index, so it looks like the rest of the text, as in VS Code's diff view; unstaging is left to the host, which calls `setChanges` with the new index afterwards. `sigil/fonts.css` loads the fonts the editor is set in, Source Serif 4 and IBM Plex Mono; the editor's size is the font size of the element it is put in.
+Every member of `host` is optional, and a host that leaves one out goes without what it provides. The versions keep the editor's text and the host's in step when an edit crosses a change made elsewhere; [`docs/design.md`](docs/design.md#document-sync) says how. The editor shows the changes between the index and the document, each with a Stage button. A staged change is in the index, so it looks like the rest of the text, as in VS Code's diff view; unstaging is left to the host, which calls `setChanges` with the new index afterwards. `sigil/fonts.css` loads the fonts the editor is set in, Source Serif 4 and IBM Plex Mono; the editor's size is the font size of the element it is put in.
 
 ## Demo page
 

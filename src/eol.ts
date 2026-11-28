@@ -34,3 +34,23 @@ export function offsetIn(text: Text, pos: number, eol: string): number {
     ? pos
     : pos + (text.lineAt(pos).number - 1) * (eol.length - 1);
 }
+
+/**
+ * Where an offset into the string with the given line ending is in the editor's text: the
+ * inverse of `offsetIn`. An offset that falls inside a two-character line break is taken to be
+ * at the end of its line.
+ */
+export function positionIn(text: Text, offset: number, eol: string): number {
+  if (eol.length === 1) return Math.min(offset, text.length);
+  const extra = eol.length - 1;
+  // The last line that starts at or before the offset in the string.
+  let low = 1;
+  let high = text.lines;
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    if (text.line(mid).from + (mid - 1) * extra <= offset) low = mid;
+    else high = mid - 1;
+  }
+  const line = text.line(low);
+  return Math.min(offset - (low - 1) * extra, line.to);
+}
